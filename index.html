@@ -8,25 +8,42 @@
 body { font-family: Arial; background: #111; color: white; text-align: center; }
 header { background: #2196f3; padding: 15px; font-size: 20px; }
 .container { padding: 15px; }
+
 input, select {
-  width: 85%; padding: 10px; margin: 6px;
-  border-radius: 8px; border: none;
+  width: 85%;
+  padding: 10px;
+  margin: 6px;
+  border-radius: 8px;
+  border: none;
 }
+
 button {
-  padding: 12px; border-radius: 8px; border: none;
-  background: #2196f3; color: white; font-size: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: #2196f3;
+  color: white;
+  font-size: 16px;
 }
+
 .result {
-  margin-top: 20px; background: #222;
-  padding: 15px; border-radius: 10px;
+  margin-top: 20px;
+  background: #222;
+  padding: 15px;
+  border-radius: 10px;
 }
+
 .item {
-  padding: 10px; border-bottom: 1px solid #333;
-  cursor: pointer; text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+  text-align: left;
 }
+
 .item:hover { background: #333; }
 
 #status { margin: 10px; color: #aaa; }
+.helper { font-size: 12px; color: #aaa; }
 </style>
 </head>
 
@@ -36,58 +53,60 @@ button {
 
 <div class="container">
 
-  <div id="status">Loading data...</div>
+<div id="status">Loading data...</div>
 
-  <h3>Update Data (Optional)</h3>
-  <input type="file" id="fileHTS" accept=".csv"><br>
-  <input type="file" id="file301" accept=".csv"><br>
-  <button onclick="resetData()">Reset to Default Data</button>
+<h3>Update Data (Optional)</h3>
+<input type="file" id="fileHTS" accept=".csv"><br>
+<input type="file" id="file301" accept=".csv"><br>
+<button onclick="resetData()">Reset to Default Data</button>
 
-  <hr>
+<hr>
 
-  <input id="search" placeholder="Search HTS or description">
-  <button onclick="searchHTS()">Search</button>
+<input id="search" placeholder="Enter HTS (no decimals, 6–8 digits) or description" oninput="cleanInput()">
+<div class="helper">Example: 481490 or 48149002 (no dots or suffix needed)</div>
 
-  <div id="results"></div>
+<button onclick="searchHTS()">Search</button>
 
-  <hr>
+<div id="results"></div>
 
-  <input id="cost" type="number" placeholder="Unit Cost ($)">
-  <input id="units" type="number" placeholder="Total Units">
+<hr>
 
-  <input id="freight" type="number" placeholder="Total Freight ($)">
-  <input id="brokerage" type="number" placeholder="Total Brokerage ($)">
-  <input id="other" type="number" placeholder="Other Costs ($)">
+<input id="cost" type="number" placeholder="Unit Cost ($)">
+<input id="units" type="number" placeholder="Total Units">
 
-  <select id="country">
-    <option value="">Country of Origin</option>
-    <option value="CN">China</option>
-    <option value="VN">Vietnam</option>
-    <option value="IN">India</option>
-    <option value="MX">Mexico</option>
-  </select>
+<input id="freight" type="number" placeholder="Total Freight ($)">
+<input id="brokerage" type="number" placeholder="Total Brokerage ($)">
+<input id="other" type="number" placeholder="Other Costs ($)">
 
-  <hr>
+<select id="country">
+  <option value="" disabled selected>Select Country of Origin *</option>
+  <option value="CN">China</option>
+  <option value="VN">Vietnam</option>
+  <option value="IN">India</option>
+  <option value="MX">Mexico</option>
+</select>
 
-  <h3>Section 232 Inputs</h3>
+<hr>
 
-  <input id="metalPercent" type="number" placeholder="% Metal Content">
+<h3>Section 232 Inputs</h3>
 
-  <select id="productType">
-    <option value="">Product Type</option>
-    <option value="raw">Raw Metal</option>
-    <option value="derivative">Derivative Article</option>
-    <option value="industrial">Industrial/Grid Equipment</option>
-  </select>
+<input id="metalPercent" type="number" placeholder="% Metal Content">
 
-  <select id="usMaterial">
-    <option value="no">Foreign Metal</option>
-    <option value="yes">Made with US Metal</option>
-  </select>
+<select id="productType">
+  <option value="">Product Type</option>
+  <option value="raw">Raw Metal</option>
+  <option value="derivative">Derivative Article</option>
+  <option value="industrial">Industrial/Grid Equipment</option>
+</select>
 
-  <button onclick="calculate()">Calculate</button>
+<select id="usMaterial">
+  <option value="no">Foreign Metal</option>
+  <option value="yes">Made with US Metal</option>
+</select>
 
-  <div id="output" class="result"></div>
+<button onclick="calculate()">Calculate</button>
+
+<div id="output" class="result"></div>
 
 </div>
 
@@ -98,7 +117,17 @@ let SECTION301_LIST = [];
 let selectedHTS = null;
 let dataReady = false;
 
-// CSV parser
+// =======================
+// CLEAN INPUT
+// =======================
+function cleanInput() {
+  let input = document.getElementById("search");
+  input.value = input.value.replace(/[^a-zA-Z0-9]/g, '');
+}
+
+// =======================
+// CSV PARSER
+// =======================
 function parseCSV(text) {
   const rows = [];
   let row = [];
@@ -133,7 +162,9 @@ function normalizeHTS(hts) {
   return hts.replace(/\./g, '').replace(/\s/g, '').trim();
 }
 
+// =======================
 // LOAD DATA
+// =======================
 async function loadDefaultData() {
   try {
     let htsText = await fetch("tariff_database_2026.csv").then(r => r.text());
@@ -163,7 +194,9 @@ window.onload = async function() {
   }
 };
 
-// Upload override
+// =======================
+// FILE UPLOAD
+// =======================
 document.getElementById("fileHTS").addEventListener("change", e => {
   const reader = new FileReader();
   reader.onload = e => parseHTS(e.target.result);
@@ -176,7 +209,9 @@ document.getElementById("file301").addEventListener("change", e => {
   reader.readAsText(e.target.files[0]);
 });
 
-// Parse HTS
+// =======================
+// PARSE HTS
+// =======================
 function parseHTS(text) {
   let rows = parseCSV(text);
   let headers = rows[0].map(h => h.toLowerCase());
@@ -205,7 +240,9 @@ function parseHTS(text) {
   localStorage.setItem("HTS_DATA", JSON.stringify(HTS_DATA));
 }
 
-// Parse 301
+// =======================
+// PARSE 301
+// =======================
 function parse301(text) {
   let rows = parseCSV(text).slice(1);
   SECTION301_LIST = [];
@@ -223,7 +260,9 @@ function parse301(text) {
   localStorage.setItem("SECTION301_LIST", JSON.stringify(SECTION301_LIST));
 }
 
-// Match 301
+// =======================
+// MATCH 301
+// =======================
 function get301Rate(hts) {
   for (let item of SECTION301_LIST) {
     if (hts.startsWith(item.hts) || item.hts.startsWith(hts)) {
@@ -233,15 +272,18 @@ function get301Rate(hts) {
   return 0;
 }
 
-// Search
+// =======================
+// SEARCH
+// =======================
 function searchHTS() {
   if (!dataReady) return alert("Data still loading");
 
-  let query = document.getElementById("search").value.toLowerCase();
+  let rawQuery = document.getElementById("search").value.toLowerCase();
+  let query = rawQuery.replace(/\./g, '').replace(/\s/g, '');
 
   let matches = HTS_DATA.filter(item =>
-    item.originalHTS.includes(query) ||
-    item.description.toLowerCase().includes(query)
+    item.hts.includes(query) ||
+    item.description.toLowerCase().includes(rawQuery)
   ).slice(0, 15);
 
   let resultsDiv = document.getElementById("results");
@@ -262,10 +304,22 @@ function searchHTS() {
   });
 }
 
-// Calculate
+// =======================
+// CALCULATE
+// =======================
 function calculate() {
   if (!dataReady) return alert("Data still loading");
   if (!selectedHTS) return alert("Select HTS");
+
+  let countrySelect = document.getElementById("country");
+
+  if (!countrySelect.value) {
+    countrySelect.style.border = "2px solid red";
+    alert("Country of Origin is required");
+    return;
+  } else {
+    countrySelect.style.border = "none";
+  }
 
   let cost = parseFloat(document.getElementById("cost").value) || 0;
   let units = parseFloat(document.getElementById("units").value) || 1;
@@ -274,7 +328,7 @@ function calculate() {
   let brokerage = parseFloat(document.getElementById("brokerage").value) || 0;
   let other = parseFloat(document.getElementById("other").value) || 0;
 
-  let country = document.getElementById("country").value;
+  let country = countrySelect.value;
 
   let metalPercent = parseFloat(document.getElementById("metalPercent").value) || 0;
   let productType = document.getElementById("productType").value;
@@ -319,7 +373,9 @@ function calculate() {
   `;
 }
 
-// Reset
+// =======================
+// RESET
+// =======================
 function resetData() {
   localStorage.clear();
   location.reload();
