@@ -26,11 +26,7 @@ button {
 }
 .item:hover { background: #333; }
 
-#status {
-  margin: 10px;
-  font-size: 14px;
-  color: #aaa;
-}
+#status { margin: 10px; color: #aaa; }
 </style>
 </head>
 
@@ -57,8 +53,10 @@ button {
   <hr>
 
   <input id="cost" type="number" placeholder="Unit Cost ($)">
-  <input id="freight" type="number" placeholder="Freight ($)">
-  <input id="brokerage" type="number" placeholder="Brokerage ($)">
+  <input id="units" type="number" placeholder="Total Units">
+
+  <input id="freight" type="number" placeholder="Total Freight ($)">
+  <input id="brokerage" type="number" placeholder="Total Brokerage ($)">
   <input id="other" type="number" placeholder="Other Costs ($)">
 
   <select id="country">
@@ -135,9 +133,7 @@ function normalizeHTS(hts) {
   return hts.replace(/\./g, '').replace(/\s/g, '').trim();
 }
 
-// =======================
 // LOAD DATA
-// =======================
 async function loadDefaultData() {
   try {
     let htsText = await fetch("tariff_database_2026.csv").then(r => r.text());
@@ -149,7 +145,6 @@ async function loadDefaultData() {
     dataReady = true;
     document.getElementById("status").innerText = "Data loaded ✓";
   } catch (err) {
-    console.error(err);
     document.getElementById("status").innerText = "Error loading data";
   }
 }
@@ -273,9 +268,12 @@ function calculate() {
   if (!selectedHTS) return alert("Select HTS");
 
   let cost = parseFloat(document.getElementById("cost").value) || 0;
+  let units = parseFloat(document.getElementById("units").value) || 1;
+
   let freight = parseFloat(document.getElementById("freight").value) || 0;
   let brokerage = parseFloat(document.getElementById("brokerage").value) || 0;
   let other = parseFloat(document.getElementById("other").value) || 0;
+
   let country = document.getElementById("country").value;
 
   let metalPercent = parseFloat(document.getElementById("metalPercent").value) || 0;
@@ -295,8 +293,8 @@ function calculate() {
   let totalRate = general + section301 + section232;
   let duty = cost * (totalRate / 100);
 
-  let totalCost = cost + duty;
-  let landed = totalCost + freight + brokerage + other;
+  let logisticsPerUnit = (freight + brokerage + other) / units;
+  let landedPerUnit = cost + duty + logisticsPerUnit;
 
   document.getElementById("output").innerHTML = `
     <h3>${selectedHTS.originalHTS}</h3>
@@ -309,18 +307,15 @@ function calculate() {
     <hr>
 
     <strong>Total Tariff Rate: ${totalRate}%</strong><br>
-    Duty: $${duty.toFixed(2)}<br>
-    Cost + Duty: $${totalCost.toFixed(2)}<br>
+    Duty per Unit: $${duty.toFixed(2)}<br>
 
     <hr>
 
-    Freight: $${freight.toFixed(2)}<br>
-    Brokerage: $${brokerage.toFixed(2)}<br>
-    Other: $${other.toFixed(2)}<br>
+    Logistics per Unit: $${logisticsPerUnit.toFixed(2)}<br>
 
     <hr>
 
-    <strong>TRUE Landed Cost: $${landed.toFixed(2)}</strong>
+    <strong>TRUE Landed Cost per Unit: $${landedPerUnit.toFixed(2)}</strong>
   `;
 }
 
