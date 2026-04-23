@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTS Tariff Engine</title>
+
+<style>
+body { font-family: Arial; background: #111; color: white; text-align: center; }
+header { background: #2196f3; padding: 15px; font-size: 20px; }
+.container { padding: 15px; }
+input, select {
+  width: 85%; padding: 10px; margin: 6px;
+  border-radius: 8px; border: none;
+}
+button {
+  padding: 12px; border-radius: 8px; border: none;
+  background: #2196f3; color: white; font-size: 16px;
+}
+.result {
+  margin-top: 20px; background: #222;
+  padding: 15px; border-radius: 10px;
+}
+.item {
+  padding: 10px; border-bottom: 1px solid #333;
+  cursor: pointer; text-align: left;
+}
+.item:hover { background: #333; }
+</style>
+</head>
+
+<body>
+
+<header>HTS Tariff Engine</header>
+
+<div class="container">
+
+  <h3>Upload / Replace Data</h3>
+  <input type="file" id="fileHTS" accept=".csv"><br>
+  <input type="file" id="file301" accept=".csv"><br>
+  <button onclick="resetData()">Clear Saved Data</button>
+
+  <hr>
+
+  <input id="search" placeholder="Search HTS or description">
+  <button onclick="searchHTS()">Search</button>
+
+  <div id="results"></div>
+
+  <hr>
+
+  <input id="cost" type="number" placeholder="Unit Cost ($)">
+
+  <select id="country">
+    <option value="">Country of Origin</option>
+    <option value="CN">China</option>
+    <option value="VN">Vietnam</option>
+    <option value="IN">India</option>
+    <option value="MX">Mexico</option>
+  </select>
+
+  <input id="supplier" placeholder="Supplier">
+
+  <hr>
+
+  <h3>Section 232 Inputs</h3>
+
+  <input id="metalPercent" type="number" placeholder="% Metal Content">
+
+  <select id="productType">
+    <option value="">Product Type</option>
+    <option value="raw">Raw Metal</option>
+    <option value="derivative">Derivative Article</option>
+    <option value="industrial">Industrial/Grid Equipment</option>
+  </select>
+
+  <select id="usMaterial">
+    <option value="no">Foreign Metal</option>
+    <option value="yes">Made with US Metal</option>
+  </select>
+
+  <button onclick="calculate()">Calculate</button>
+
+  <div id="output" class="result"></div>
+
+</div>
+
+<script>
+
+// =======================
+// GLOBALS
+// =======================
+let HTS_DATA = [];
+let SECTION301_LIST = [];
+let selectedHTS = null;
+
+// =======================
+// CSV PARSER
+// =======================
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let char of text) {
+    if (char === '"') inQuotes = !inQuotes;
+    else if (char === ',' && !inQuotes) {
+      row.push(current);
+      current = '';
+    }
+    else if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (current || row.length) {
+        row.push(current);
+        rows.push(row);
+        row = [];
+        current = '';
+      }
+    } else current += char;
+  }
+
+  if (current || row.length) {
+    row.push(current);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+// =======================
+// NORMALIZE HTS
+// =======================
+function normalizeHTS(hts) {
+  return hts.replace(/\./g, '').replace(/\s/g, '').trim();
+}
+
+// =======================
+// AUTO LOAD SAVED DATA
+// =======================
+window.onload = function() {
+  let savedHTS = localStorage.getItem("HTS_DATA");
+  let saved301 = localStorage.getItem("SECTION301_LIST");
+
+  if (savedHTS) {
+    HTS_DATA = JSON.parse(savedHTS);
+    console.log("HTS loaded from storage");
+  }
+
+  if (saved301) {
+    SECTION301_LIST = JSON.parse(saved301);
+    console.log("301 loaded from storage");
+  }
+
+  if (!savedHTS || !saved301) {
+    alert("Upload your HTS and 301 files to begin");
+  }
+};
+
+// =======================
+// FILE LOADERS
+// =======================
+document.getElementById("fileHTS").addEventListener("change", e => {
+  const reader = new FileReader();
+  reader.onload = e => parseHTS(e.target.result);
+  reader.readAsText(e.target.files[0]);
+});
+
+document.getElementById("file301").addEventListener("change", e => {
+  const reader = new FileReader();
+  reader.onload = e => parse301(e.target.result);
+  reader.readAsText(e.target.files[0]);
+});
+
+// =======================
+// PARSE HTS (MFN)
+// =======================
+function parseHTS(text) {
+  let rows = parseCSV(text);
+  let headers = rows[0].map(h => h.toLowerCase());
+
+  let htsIndex = headers.findIndex(h => h.includes("hts"));
+  let descIndex = headers.findIndex(h => h.includes("description"));
+  let dutyIndex = headers.findIndex(h => h.includes("mfn") || h.includes("general"));
+
+  HTS_DATA = rows.slice(1).map(cols => {
+    let rawHTS = cols[htsIndex];
+    let dutyText = cols[dutyIndex] || "";
+
+    let duty = 0;
+
+    if (dutyText.toLowerCase().includes("free")) duty = 0;
+    else if (dutyText.includes("¢")) duty = 0;
+    else duty = parseFloat(dutyText.replace("%",""));
+
+    return {
+      hts: normalizeHTS(rawHTS),
+      originalHTS: rawHTS,
+      description: cols[descIndex] || "",
+      duty: isNaN(duty) ? 0 : duty
+    };
+  });
+
+  localStorage.setItem("HTS_DATA", JSON.stringify(HTS_DATA));
+  alert("HTS uploaded and saved");
+}
+
+// =======================
+// PARSE 301
+// =======================
+function parse301(text) {
+  let rows = parseCSV(text).slice(1);
+  SECTION301_LIST = [];
+
+  rows.forEach(cols => {
+    let rate = parseFloat((cols[2] || "").replace("%",""));
+    if (!isNaN(rate)) {
+      SECTION301_LIST.push({
+        hts: normalizeHTS(cols[0]),
+        rate
+      });
+    }
+  });
+
+  localStorage.setItem("SECTION301_LIST", JSON.stringify(SECTION301_LIST));
+  alert("301 uploaded and saved");
+}
+
+// =======================
+// MATCH 301
+// =======================
+function get301Rate(hts) {
+  for (let item of SECTION301_LIST) {
+    if (hts.startsWith(item.hts) || item.hts.startsWith(hts)) {
+      return item.rate;
+    }
+  }
+  return 0;
+}
+
+// =======================
+// SEARCH
+// =======================
+function searchHTS() {
+  let query = document.getElementById("search").value.toLowerCase();
+
+  let matches = HTS_DATA.filter(item =>
+    item.originalHTS.includes(query) ||
+    item.description.toLowerCase().includes(query)
+  ).slice(0, 15);
+
+  let resultsDiv = document.getElementById("results");
+  resultsDiv.innerHTML = "<h3>Select HTS</h3>";
+
+  matches.forEach(item => {
+    let div = document.createElement("div");
+    div.className = "item";
+
+    div.innerHTML = `<strong>${item.originalHTS}</strong><br><small>${item.description}</small>`;
+
+    div.onclick = () => {
+      selectedHTS = item;
+      resultsDiv.innerHTML = `<strong>Selected:</strong><br>${item.originalHTS}<br><small>${item.description}</small>`;
+    };
+
+    resultsDiv.appendChild(div);
+  });
+}
+
+// =======================
+// CALCULATE
+// =======================
+function calculate() {
+  if (!selectedHTS) return alert("Select HTS");
+
+  let cost = parseFloat(document.getElementById("cost").value);
+  let country = document.getElementById("country").value;
+
+  let metalPercent = parseFloat(document.getElementById("metalPercent").value) || 0;
+  let productType = document.getElementById("productType").value;
+  let usMaterial = document.getElementById("usMaterial").value;
+
+  let general = selectedHTS.duty;
+  let section301 = country === "CN" ? get301Rate(selectedHTS.hts) : 0;
+
+  let section232 = 0;
+
+  if (metalPercent <= 15) section232 = 0;
+  else if (usMaterial === "yes") section232 = 10;
+  else if (productType === "industrial") section232 = 15;
+  else if (productType === "derivative") section232 = 25;
+  else if (productType === "raw") section232 = 50;
+
+  let totalRate = general + section301 + section232;
+  let duty = cost * (totalRate / 100);
+
+  document.getElementById("output").innerHTML = `
+    <h3>${selectedHTS.originalHTS}</h3>
+    <small>${selectedHTS.description}</small><br><br>
+
+    General: ${general}%<br>
+    Section 301: ${section301}%<br>
+    Section 232: ${section232}%<br>
+
+    <hr>
+
+    <strong>Total: ${totalRate}%</strong><br>
+    Duty: $${duty.toFixed(2)}<br>
+    Landed: $${(cost + duty).toFixed(2)}
+  `;
+}
+
+// =======================
+// RESET DATA
+// =======================
+function resetData() {
+  localStorage.clear();
+  HTS_DATA = [];
+  SECTION301_LIST = [];
+  alert("Data cleared. Upload new files.");
+}
+
+</script>
+
+</body>
+</html>
