@@ -126,6 +126,15 @@ function cleanInput() {
 }
 
 // =======================
+// NORMALIZE HTS (IGNORE SUFFIX)
+// =======================
+function normalizeHTS(hts) {
+  return hts
+    .replace(/[^0-9]/g, '') // remove dots/spaces
+    .substring(0, 8);       // keep first 8 digits only
+}
+
+// =======================
 // CSV PARSER
 // =======================
 function parseCSV(text) {
@@ -158,10 +167,6 @@ function parseCSV(text) {
   return rows;
 }
 
-function normalizeHTS(hts) {
-  return hts.replace(/\./g, '').replace(/\s/g, '').trim();
-}
-
 // =======================
 // LOAD DATA
 // =======================
@@ -175,7 +180,7 @@ async function loadDefaultData() {
 
     dataReady = true;
     document.getElementById("status").innerText = "Data loaded ✓";
-  } catch (err) {
+  } catch {
     document.getElementById("status").innerText = "Error loading data";
   }
 }
@@ -226,7 +231,6 @@ function parseHTS(text) {
 
     let duty = 0;
     if (dutyText.toLowerCase().includes("free")) duty = 0;
-    else if (dutyText.includes("¢")) duty = 0;
     else duty = parseFloat(dutyText.replace("%",""));
 
     return {
@@ -261,11 +265,15 @@ function parse301(text) {
 }
 
 // =======================
-// MATCH 301
+// MATCH 301 (6 DIGIT MATCH)
 // =======================
 function get301Rate(hts) {
+  let cleanHTS = normalizeHTS(hts);
+
   for (let item of SECTION301_LIST) {
-    if (hts.startsWith(item.hts) || item.hts.startsWith(hts)) {
+    let listHTS = normalizeHTS(item.hts);
+
+    if (cleanHTS.substring(0,6) === listHTS.substring(0,6)) {
       return item.rate;
     }
   }
@@ -279,10 +287,10 @@ function searchHTS() {
   if (!dataReady) return alert("Data still loading");
 
   let rawQuery = document.getElementById("search").value.toLowerCase();
-  let query = rawQuery.replace(/\./g, '').replace(/\s/g, '');
+  let query = rawQuery.replace(/[^0-9]/g, '').substring(0,8);
 
   let matches = HTS_DATA.filter(item =>
-    item.hts.includes(query) ||
+    item.hts.startsWith(query) ||
     item.description.toLowerCase().includes(rawQuery)
   ).slice(0, 15);
 
