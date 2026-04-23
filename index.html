@@ -25,6 +25,12 @@ button {
   cursor: pointer; text-align: left;
 }
 .item:hover { background: #333; }
+
+#status {
+  margin: 10px;
+  font-size: 14px;
+  color: #aaa;
+}
 </style>
 </head>
 
@@ -33,6 +39,8 @@ button {
 <header>HTS Tariff Engine</header>
 
 <div class="container">
+
+  <div id="status">Loading data...</div>
 
   <h3>Update Data (Optional)</h3>
   <input type="file" id="fileHTS" accept=".csv"><br>
@@ -90,6 +98,7 @@ button {
 let HTS_DATA = [];
 let SECTION301_LIST = [];
 let selectedHTS = null;
+let dataReady = false;
 
 // CSV parser
 function parseCSV(text) {
@@ -130,22 +139,32 @@ function normalizeHTS(hts) {
 // LOAD DATA
 // =======================
 async function loadDefaultData() {
-  let htsText = await fetch("tariff_database_2026.csv").then(r => r.text());
-  let s301Text = await fetch("Listed Commodities.csv").then(r => r.text());
+  try {
+    let htsText = await fetch("tariff_database_2026.csv").then(r => r.text());
+    let s301Text = await fetch("Listed Commodities.csv").then(r => r.text());
 
-  parseHTS(htsText);
-  parse301(s301Text);
+    parseHTS(htsText);
+    parse301(s301Text);
+
+    dataReady = true;
+    document.getElementById("status").innerText = "Data loaded ✓";
+  } catch (err) {
+    console.error(err);
+    document.getElementById("status").innerText = "Error loading data";
+  }
 }
 
-window.onload = function() {
+window.onload = async function() {
   let savedHTS = localStorage.getItem("HTS_DATA");
   let saved301 = localStorage.getItem("SECTION301_LIST");
 
   if (savedHTS && saved301) {
     HTS_DATA = JSON.parse(savedHTS);
     SECTION301_LIST = JSON.parse(saved301);
+    dataReady = true;
+    document.getElementById("status").innerText = "Loaded saved data ✓";
   } else {
-    loadDefaultData();
+    await loadDefaultData();
   }
 };
 
@@ -176,7 +195,6 @@ function parseHTS(text) {
     let dutyText = cols[dutyIndex] || "";
 
     let duty = 0;
-
     if (dutyText.toLowerCase().includes("free")) duty = 0;
     else if (dutyText.includes("¢")) duty = 0;
     else duty = parseFloat(dutyText.replace("%",""));
@@ -222,6 +240,8 @@ function get301Rate(hts) {
 
 // Search
 function searchHTS() {
+  if (!dataReady) return alert("Data still loading");
+
   let query = document.getElementById("search").value.toLowerCase();
 
   let matches = HTS_DATA.filter(item =>
@@ -249,6 +269,7 @@ function searchHTS() {
 
 // Calculate
 function calculate() {
+  if (!dataReady) return alert("Data still loading");
   if (!selectedHTS) return alert("Select HTS");
 
   let cost = parseFloat(document.getElementById("cost").value) || 0;
