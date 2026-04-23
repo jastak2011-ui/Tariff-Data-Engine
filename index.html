@@ -34,10 +34,10 @@ button {
 
 <div class="container">
 
-  <h3>Upload / Replace Data</h3>
+  <h3>Update Data (Optional)</h3>
   <input type="file" id="fileHTS" accept=".csv"><br>
   <input type="file" id="file301" accept=".csv"><br>
-  <button onclick="resetData()">Clear Saved Data</button>
+  <button onclick="resetData()">Reset to Default Data</button>
 
   <hr>
 
@@ -134,29 +134,38 @@ function normalizeHTS(hts) {
 }
 
 // =======================
-// AUTO LOAD SAVED DATA
+// AUTO LOAD (DEFAULT OR SAVED)
 // =======================
+async function loadDefaultData() {
+  try {
+    let htsText = await fetch("tariff_database_2026.csv").then(r => r.text());
+    parseHTS(htsText);
+
+    let s301Text = await fetch("Listed Commodities.csv").then(r => r.text());
+    parse301(s301Text);
+
+    console.log("Loaded default GitHub data");
+  } catch (err) {
+    console.error("Error loading default files", err);
+    alert("Failed to load default data files");
+  }
+}
+
 window.onload = function() {
   let savedHTS = localStorage.getItem("HTS_DATA");
   let saved301 = localStorage.getItem("SECTION301_LIST");
 
-  if (savedHTS) {
+  if (savedHTS && saved301) {
     HTS_DATA = JSON.parse(savedHTS);
-    console.log("HTS loaded from storage");
-  }
-
-  if (saved301) {
     SECTION301_LIST = JSON.parse(saved301);
-    console.log("301 loaded from storage");
-  }
-
-  if (!savedHTS || !saved301) {
-    alert("Upload your HTS and 301 files to begin");
+    console.log("Loaded local saved data");
+  } else {
+    loadDefaultData();
   }
 };
 
 // =======================
-// FILE LOADERS
+// FILE UPLOAD (OVERRIDE)
 // =======================
 document.getElementById("fileHTS").addEventListener("change", e => {
   const reader = new FileReader();
@@ -171,7 +180,7 @@ document.getElementById("file301").addEventListener("change", e => {
 });
 
 // =======================
-// PARSE HTS (MFN)
+// PARSE HTS
 // =======================
 function parseHTS(text) {
   let rows = parseCSV(text);
@@ -200,7 +209,7 @@ function parseHTS(text) {
   });
 
   localStorage.setItem("HTS_DATA", JSON.stringify(HTS_DATA));
-  alert("HTS uploaded and saved");
+  alert("HTS data loaded & saved");
 }
 
 // =======================
@@ -221,7 +230,7 @@ function parse301(text) {
   });
 
   localStorage.setItem("SECTION301_LIST", JSON.stringify(SECTION301_LIST));
-  alert("301 uploaded and saved");
+  alert("301 data loaded & saved");
 }
 
 // =======================
@@ -309,13 +318,12 @@ function calculate() {
 }
 
 // =======================
-// RESET DATA
+// RESET
 // =======================
 function resetData() {
   localStorage.clear();
-  HTS_DATA = [];
-  SECTION301_LIST = [];
-  alert("Data cleared. Upload new files.");
+  alert("Reset to default GitHub data");
+  location.reload();
 }
 
 </script>
