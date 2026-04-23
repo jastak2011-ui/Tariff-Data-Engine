@@ -49,6 +49,9 @@ button {
   <hr>
 
   <input id="cost" type="number" placeholder="Unit Cost ($)">
+  <input id="freight" type="number" placeholder="Freight ($)">
+  <input id="brokerage" type="number" placeholder="Brokerage ($)">
+  <input id="other" type="number" placeholder="Other Costs ($)">
 
   <select id="country">
     <option value="">Country of Origin</option>
@@ -57,8 +60,6 @@ button {
     <option value="IN">India</option>
     <option value="MX">Mexico</option>
   </select>
-
-  <input id="supplier" placeholder="Supplier">
 
   <hr>
 
@@ -86,16 +87,11 @@ button {
 
 <script>
 
-// =======================
-// GLOBALS
-// =======================
 let HTS_DATA = [];
 let SECTION301_LIST = [];
 let selectedHTS = null;
 
-// =======================
-// CSV PARSER
-// =======================
+// CSV parser
 function parseCSV(text) {
   const rows = [];
   let row = [];
@@ -126,29 +122,19 @@ function parseCSV(text) {
   return rows;
 }
 
-// =======================
-// NORMALIZE HTS
-// =======================
 function normalizeHTS(hts) {
   return hts.replace(/\./g, '').replace(/\s/g, '').trim();
 }
 
 // =======================
-// AUTO LOAD (DEFAULT OR SAVED)
+// LOAD DATA
 // =======================
 async function loadDefaultData() {
-  try {
-    let htsText = await fetch("tariff_database_2026.csv").then(r => r.text());
-    parseHTS(htsText);
+  let htsText = await fetch("tariff_database_2026.csv").then(r => r.text());
+  let s301Text = await fetch("Listed Commodities.csv").then(r => r.text());
 
-    let s301Text = await fetch("Listed Commodities.csv").then(r => r.text());
-    parse301(s301Text);
-
-    console.log("Loaded default GitHub data");
-  } catch (err) {
-    console.error("Error loading default files", err);
-    alert("Failed to load default data files");
-  }
+  parseHTS(htsText);
+  parse301(s301Text);
 }
 
 window.onload = function() {
@@ -158,15 +144,12 @@ window.onload = function() {
   if (savedHTS && saved301) {
     HTS_DATA = JSON.parse(savedHTS);
     SECTION301_LIST = JSON.parse(saved301);
-    console.log("Loaded local saved data");
   } else {
     loadDefaultData();
   }
 };
 
-// =======================
-// FILE UPLOAD (OVERRIDE)
-// =======================
+// Upload override
 document.getElementById("fileHTS").addEventListener("change", e => {
   const reader = new FileReader();
   reader.onload = e => parseHTS(e.target.result);
@@ -179,9 +162,7 @@ document.getElementById("file301").addEventListener("change", e => {
   reader.readAsText(e.target.files[0]);
 });
 
-// =======================
-// PARSE HTS
-// =======================
+// Parse HTS
 function parseHTS(text) {
   let rows = parseCSV(text);
   let headers = rows[0].map(h => h.toLowerCase());
@@ -209,12 +190,9 @@ function parseHTS(text) {
   });
 
   localStorage.setItem("HTS_DATA", JSON.stringify(HTS_DATA));
-  alert("HTS data loaded & saved");
 }
 
-// =======================
-// PARSE 301
-// =======================
+// Parse 301
 function parse301(text) {
   let rows = parseCSV(text).slice(1);
   SECTION301_LIST = [];
@@ -230,12 +208,9 @@ function parse301(text) {
   });
 
   localStorage.setItem("SECTION301_LIST", JSON.stringify(SECTION301_LIST));
-  alert("301 data loaded & saved");
 }
 
-// =======================
-// MATCH 301
-// =======================
+// Match 301
 function get301Rate(hts) {
   for (let item of SECTION301_LIST) {
     if (hts.startsWith(item.hts) || item.hts.startsWith(hts)) {
@@ -245,9 +220,7 @@ function get301Rate(hts) {
   return 0;
 }
 
-// =======================
-// SEARCH
-// =======================
+// Search
 function searchHTS() {
   let query = document.getElementById("search").value.toLowerCase();
 
@@ -274,13 +247,14 @@ function searchHTS() {
   });
 }
 
-// =======================
-// CALCULATE
-// =======================
+// Calculate
 function calculate() {
   if (!selectedHTS) return alert("Select HTS");
 
-  let cost = parseFloat(document.getElementById("cost").value);
+  let cost = parseFloat(document.getElementById("cost").value) || 0;
+  let freight = parseFloat(document.getElementById("freight").value) || 0;
+  let brokerage = parseFloat(document.getElementById("brokerage").value) || 0;
+  let other = parseFloat(document.getElementById("other").value) || 0;
   let country = document.getElementById("country").value;
 
   let metalPercent = parseFloat(document.getElementById("metalPercent").value) || 0;
@@ -291,7 +265,6 @@ function calculate() {
   let section301 = country === "CN" ? get301Rate(selectedHTS.hts) : 0;
 
   let section232 = 0;
-
   if (metalPercent <= 15) section232 = 0;
   else if (usMaterial === "yes") section232 = 10;
   else if (productType === "industrial") section232 = 15;
@@ -300,6 +273,9 @@ function calculate() {
 
   let totalRate = general + section301 + section232;
   let duty = cost * (totalRate / 100);
+
+  let totalCost = cost + duty;
+  let landed = totalCost + freight + brokerage + other;
 
   document.getElementById("output").innerHTML = `
     <h3>${selectedHTS.originalHTS}</h3>
@@ -311,18 +287,25 @@ function calculate() {
 
     <hr>
 
-    <strong>Total: ${totalRate}%</strong><br>
+    <strong>Total Tariff Rate: ${totalRate}%</strong><br>
     Duty: $${duty.toFixed(2)}<br>
-    Landed: $${(cost + duty).toFixed(2)}
+    Cost + Duty: $${totalCost.toFixed(2)}<br>
+
+    <hr>
+
+    Freight: $${freight.toFixed(2)}<br>
+    Brokerage: $${brokerage.toFixed(2)}<br>
+    Other: $${other.toFixed(2)}<br>
+
+    <hr>
+
+    <strong>TRUE Landed Cost: $${landed.toFixed(2)}</strong>
   `;
 }
 
-// =======================
-// RESET
-// =======================
+// Reset
 function resetData() {
   localStorage.clear();
-  alert("Reset to default GitHub data");
   location.reload();
 }
 
