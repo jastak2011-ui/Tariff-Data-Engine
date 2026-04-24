@@ -16,7 +16,6 @@ header {
   background: #161b22;
   padding: 18px;
   font-size: 22px;
-  font-weight: 600;
   text-align: center;
   border-bottom: 1px solid #30363d;
 }
@@ -35,7 +34,6 @@ header {
 }
 
 h3 {
-  margin: 0 0 10px 0;
   font-size: 14px;
   color: #8b949e;
 }
@@ -108,12 +106,6 @@ button {
 ul li {
   margin-bottom: 8px;
 }
-
-hr {
-  border: none;
-  border-top: 1px solid #30363d;
-  margin: 12px 0;
-}
 </style>
 </head>
 
@@ -123,13 +115,15 @@ hr {
 
 <div class="container">
 
+<!-- HTS -->
 <div class="section">
   <h3>HTS Lookup</h3>
-  <input id="search" placeholder="Enter HTS (6–8 digits) or description" oninput="cleanInput()">
+  <input id="search" placeholder="Enter HTS or description" oninput="cleanInput()">
   <button onclick="searchHTS()">Search</button>
   <div id="results"></div>
 </div>
 
+<!-- COST -->
 <div class="section">
   <h3>Cost Inputs</h3>
   <div class="row">
@@ -143,6 +137,7 @@ hr {
   <input id="other" type="number" placeholder="Other Costs">
 </div>
 
+<!-- COUNTRY -->
 <div class="section">
   <h3>Origin</h3>
   <select id="country">
@@ -154,6 +149,7 @@ hr {
   </select>
 </div>
 
+<!-- 232 -->
 <div class="section">
   <h3 onclick="open232()" style="cursor:pointer;">Section 232 ⓘ</h3>
   <input id="metalPercent" type="number" placeholder="% Metal Content">
@@ -171,9 +167,10 @@ hr {
   </div>
 </div>
 
+<!-- 122 -->
 <div class="section">
-  <h3>Section 122</h3>
-  <div class="helper">Global 10% tariff unless Section 232 applies</div>
+  <h3 onclick="open122()" style="cursor:pointer;">Section 122 ⓘ</h3>
+  <div class="helper">10% global tariff unless Section 232 applies</div>
 </div>
 
 <button onclick="calculate()">Calculate</button>
@@ -182,10 +179,10 @@ hr {
 
 </div>
 
-<!-- MODAL -->
-<div id="modal232" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7);">
+<!-- MODAL 232 -->
+<div id="modal232" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);">
   <div style="background:#161b22; margin:15% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
-    <h3>Section 232 Explained</h3>
+    <h3>Section 232</h3>
     <ul>
       <li>50% – Raw metals</li>
       <li>25% – Derivative products</li>
@@ -197,177 +194,161 @@ hr {
   </div>
 </div>
 
+<!-- MODAL 122 -->
+<div id="modal122" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);">
+  <div style="background:#161b22; margin:15% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
+    <h3>Section 122 Explained</h3>
+
+    <p>
+    Section 122 of the Trade Act of 1974 authorizes the President to impose a temporary import surcharge of up to 15% for a maximum of 150 days to address large and serious U.S. balance-of-payments deficits.
+    </p>
+
+    <p>
+    Following the Supreme Court's February 2026 ruling in <em>Learning Resources, Inc. v. Trump</em>, the Trump Administration invoked Section 122 to impose a <strong>10% global tariff</strong> effective February 24, 2026 through July 24, 2026.
+    </p>
+
+    <p>
+    Goods already subject to <strong>Section 232 tariffs</strong> are excluded and are not subject to both duties simultaneously.
+    </p>
+
+    <button onclick="close122()">Close</button>
+  </div>
+</div>
+
 <script>
 
-let HTS_DATA = [];
-let SECTION301_LIST = [];
-let selectedHTS = null;
+let HTS_DATA=[],SECTION301_LIST=[],selectedHTS=null;
 
-function cleanInput() {
-  let input = document.getElementById("search");
-  input.value = input.value.replace(/[^a-zA-Z0-9]/g, '');
-}
+function cleanInput(){search.value=search.value.replace(/[^a-zA-Z0-9]/g,'');}
+function normalizeHTS(x){return (x||"").replace(/[^0-9]/g,'').substring(0,8);}
 
-function normalizeHTS(hts) {
-  return (hts || "").replace(/[^0-9]/g, '').substring(0,8);
-}
-
-function parseCSV(text) {
-  const rows = [];
-  let row = [], current = '', inQuotes = false;
-  for (let char of text) {
-    if (char === '"') inQuotes = !inQuotes;
-    else if (char === ',' && !inQuotes) { row.push(current); current = ''; }
-    else if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (current || row.length) { row.push(current); rows.push(row); row = []; current = ''; }
-    } else current += char;
+function parseCSV(t){
+  const r=[];let row=[],c='',q=false;
+  for(let ch of t){
+    if(ch=='"')q=!q;
+    else if(ch==','&&!q){row.push(c);c='';}
+    else if((ch=='\n'||ch=='\r')&&!q){if(c||row.length){row.push(c);r.push(row);row=[];c='';}}
+    else c+=ch;
   }
-  if (current || row.length) { row.push(current); rows.push(row); }
-  return rows;
+  if(c||row.length){row.push(c);r.push(row);}
+  return r;
 }
 
-async function loadData() {
-  let hts = await fetch("tariff_database_2026.csv").then(r => r.text());
-  let s301 = await fetch("Listed Commodities.csv").then(r => r.text());
-  parseHTS(hts);
-  parse301(s301);
+async function loadData(){
+  let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
+  let s=await fetch("Listed Commodities.csv").then(r=>r.text());
+  parseHTS(h);parse301(s);
 }
-window.onload = loadData;
+window.onload=loadData;
 
-function parseHTS(text) {
-  let rows = parseCSV(text);
-  let headers = rows[0].map(h => h.toLowerCase());
-  let htsIndex = headers.findIndex(h => h.includes("hts"));
-  let descIndex = headers.findIndex(h => h.includes("description"));
-  let dutyIndex = headers.findIndex(h => h.includes("mfn") || h.includes("general"));
+function parseHTS(t){
+  let r=parseCSV(t),h=r[0].map(x=>x.toLowerCase());
+  let hi=h.findIndex(x=>x.includes("hts"));
+  let di=h.findIndex(x=>x.includes("description"));
+  let du=h.findIndex(x=>x.includes("mfn")||x.includes("general"));
 
-  HTS_DATA = rows.slice(1).map(cols => ({
-    hts: normalizeHTS(cols[htsIndex]),
-    originalHTS: cols[htsIndex],
-    description: cols[descIndex],
-    duty: parseFloat((cols[dutyIndex] || "0").replace("%","")) || 0
+  HTS_DATA=r.slice(1).map(c=>({
+    hts:normalizeHTS(c[hi]),
+    originalHTS:c[hi],
+    description:c[di]||"",
+    duty:parseFloat((c[du]||"0").replace("%",""))||0
   }));
 }
 
-function parse301(text) {
-  let rows = parseCSV(text);
-  SECTION301_LIST = rows.slice(1).map(cols => ({
-    hts: normalizeHTS(cols[0]),
-    rate: parseFloat((cols[2] || "0").replace("%","")) || 0
+function parse301(t){
+  let r=parseCSV(t);
+  SECTION301_LIST=r.slice(1).map(c=>({
+    hts:normalizeHTS(c[0]),
+    rate:parseFloat((c[2]||"0").replace("%",""))||0
   }));
 }
 
-function get301Rate(hts) {
-  let clean = normalizeHTS(hts);
-  for (let item of SECTION301_LIST) {
-    if (clean.substring(0,6) === item.hts.substring(0,6)) return item.rate;
-  }
+function get301Rate(h){
+  let c=normalizeHTS(h);
+  for(let i of SECTION301_LIST)
+    if(c.substring(0,6)==i.hts.substring(0,6)) return i.rate;
   return 0;
 }
 
-function searchHTS() {
-  let raw = document.getElementById("search").value.toLowerCase();
-  let query = raw.replace(/[^0-9]/g, '').substring(0,8);
+function searchHTS(){
+  let raw=search.value.toLowerCase();
+  let q=raw.replace(/[^0-9]/g,'').substring(0,8);
 
-  let matches = HTS_DATA.filter(item =>
-    (query && item.hts.startsWith(query)) ||
-    item.description.toLowerCase().includes(raw)
+  let m=HTS_DATA.filter(i=>
+    (q&&i.hts.startsWith(q))||i.description.toLowerCase().includes(raw)
   ).slice(0,10);
 
-  let div = document.getElementById("results");
-  div.innerHTML = "";
-
-  matches.forEach(item => {
-    let el = document.createElement("div");
-    el.className = "item";
-    el.innerHTML = `<strong>${item.originalHTS}</strong><br><small>${item.description}</small>`;
-    el.onclick = () => {
-      selectedHTS = item;
-      div.innerHTML = `<strong>Selected:</strong><br>${item.originalHTS}`;
-    };
-    div.appendChild(el);
+  results.innerHTML="";
+  m.forEach(i=>{
+    let d=document.createElement("div");
+    d.className="item";
+    d.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
+    d.onclick=()=>{selectedHTS=i;results.innerHTML=`Selected: ${i.originalHTS}`};
+    results.appendChild(d);
   });
 }
 
-function calculate() {
+function calculate(){
+  if(!selectedHTS) return alert("Select HTS");
+  let ctry=country.value;if(!ctry) return alert("Select Country");
 
-  if (!selectedHTS) return alert("Select HTS");
-  let country = document.getElementById("country").value;
-  if (!country) return alert("Select Country");
+  let cost=+cost.value||0,units=+units.value||1;
+  let freight=+freight.value||0,brokerage=+brokerage.value||0,other=+other.value||0;
 
-  let cost = +document.getElementById("cost").value || 0;
-  let units = +document.getElementById("units").value || 1;
+  let metal=+metalPercent.value||0,ptype=productType.value,us=usMaterial.value;
 
-  let freight = +document.getElementById("freight").value || 0;
-  let brokerage = +document.getElementById("brokerage").value || 0;
-  let other = +document.getElementById("other").value || 0;
+  let gen=selectedHTS.duty;
+  let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
 
-  let metalPercent = +document.getElementById("metalPercent").value || 0;
-  let productType = document.getElementById("productType").value;
-  let usMaterial = document.getElementById("usMaterial").value;
+  let s232=0;
+  if(metal<=15)s232=0;
+  else if(us==="yes")s232=10;
+  else if(ptype==="industrial")s232=15;
+  else if(ptype==="derivative")s232=25;
+  else if(ptype==="raw")s232=50;
 
-  let general = selectedHTS.duty;
-  let section301 = country === "CN" ? get301Rate(selectedHTS.hts) : 0;
+  let s122=s232>0?0:10;
 
-  let section232 = 0;
-  if (metalPercent <= 15) section232 = 0;
-  else if (usMaterial === "yes") section232 = 10;
-  else if (productType === "industrial") section232 = 15;
-  else if (productType === "derivative") section232 = 25;
-  else if (productType === "raw") section232 = 50;
+  let dGen=cost*(gen/100),
+      d301=cost*(s301/100),
+      d232=cost*(s232/100),
+      d122=cost*(s122/100);
 
-  let section122 = section232 > 0 ? 0 : 10;
+  let totalDuty=dGen+d301+d232+d122;
+  let landed=cost+totalDuty+(freight+brokerage+other)/units;
 
-  let totalRate = general + section301 + section232 + section122;
+  output.innerHTML=`
+  <div class="big">$${landed.toFixed(2)}</div>
+  <div class="sub">Per Unit Landed Cost</div>
 
-  // DUTY BREAKOUT
-  let dutyGeneral = cost * (general / 100);
-  let duty301 = cost * (section301 / 100);
-  let duty232 = cost * (section232 / 100);
-  let duty122 = cost * (section122 / 100);
+  <hr>
 
-  let totalDuty = dutyGeneral + duty301 + duty232 + duty122;
+  General: ${gen}%<br>
+  301: ${s301}%<br>
+  232: ${s232}%<br>
+  122: ${s122}% ${s232>0?"(excluded)":""}<br>
 
-  let logistics = (freight + brokerage + other) / units;
-  let landed = cost + totalDuty + logistics;
+  <hr>
 
-  document.getElementById("output").innerHTML = `
-    <div class="sub">${selectedHTS.originalHTS}</div>
+  General: $${dGen.toFixed(2)}<br>
+  301: $${d301.toFixed(2)}<br>
+  232: $${d232.toFixed(2)}<br>
+  122: $${d122.toFixed(2)}<br>
 
-    <div class="big">$${landed.toFixed(2)}</div>
-    <div class="sub">TRUE Landed Cost per Unit</div>
-
-    <hr>
-
-    <strong>Tariff Rates</strong><br>
-    General: ${general}%<br>
-    Section 301: ${section301}%<br>
-    Section 232: ${section232}%<br>
-    Section 122: ${section122}% ${section232 > 0 ? "(Excluded due to 232)" : ""}<br>
-
-    <hr>
-
-    <strong>Duty Breakdown ($)</strong><br>
-    General: $${dutyGeneral.toFixed(2)}<br>
-    301: $${duty301.toFixed(2)}<br>
-    232: $${duty232.toFixed(2)}<br>
-    122: $${duty122.toFixed(2)}<br>
-
-    <hr>
-
-    <strong>Total Duty:</strong> $${totalDuty.toFixed(2)}<br>
-    Logistics/unit: $${logistics.toFixed(2)}
+  <hr>
+  Total Duty: $${totalDuty.toFixed(2)}
   `;
 }
 
-// MODAL
-function open232(){ document.getElementById("modal232").style.display="block"; }
-function close232(){ document.getElementById("modal232").style.display="none"; }
-window.onclick = e => {
-  let m=document.getElementById("modal232");
-  if(e.target===m) m.style.display="none";
-};
+function open232(){modal232.style.display="block";}
+function close232(){modal232.style.display="none";}
+function open122(){modal122.style.display="block";}
+function close122(){modal122.style.display="none";}
 
+window.onclick=e=>{
+  if(e.target===modal232)modal232.style.display="none";
+  if(e.target===modal122)modal122.style.display="none";
+};
 </script>
 
 </body>
