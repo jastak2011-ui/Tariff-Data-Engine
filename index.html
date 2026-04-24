@@ -24,7 +24,7 @@ header {
 .container {
   max-width: 520px;
   margin: auto;
-  padding: 15px;
+  padding: 12px;
 }
 
 .section {
@@ -32,7 +32,6 @@ header {
   border-radius: 14px;
   padding: 14px;
   margin-top: 14px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }
 
 h3 {
@@ -49,7 +48,7 @@ input, select {
   border: 1px solid #30363d;
   background: #0d1117;
   color: white;
-  font-size: 16px; /* iPhone zoom fix */
+  font-size: 16px;
   box-sizing: border-box;
 }
 
@@ -66,12 +65,11 @@ button {
   padding: 14px;
   border-radius: 12px;
   border: none;
-  background: linear-gradient(135deg, #2ea043, #238636);
+  background: #2ea043;
   color: white;
   font-size: 16px;
   width: 100%;
   margin-top: 12px;
-  font-weight: 600;
 }
 
 .result {
@@ -92,11 +90,6 @@ button {
   font-size: 13px;
 }
 
-.helper {
-  font-size: 12px;
-  color: #8b949e;
-}
-
 .item {
   padding: 10px;
   border-bottom: 1px solid #30363d;
@@ -105,6 +98,11 @@ button {
 
 .item:hover {
   background: #21262d;
+}
+
+.helper {
+  font-size: 12px;
+  color: #8b949e;
 }
 
 ul li {
@@ -125,39 +123,28 @@ hr {
 
 <div class="container">
 
-<!-- HTS -->
 <div class="section">
   <h3>HTS Lookup</h3>
-
   <input id="search" placeholder="Enter HTS (6–8 digits) or description" oninput="cleanInput()">
-  <div class="helper">You can enter 6–10 digits. System ignores formatting.</div>
-
   <button onclick="searchHTS()">Search</button>
-
   <div id="results"></div>
 </div>
 
-<!-- COST -->
 <div class="section">
   <h3>Cost Inputs</h3>
-
   <div class="row">
     <input id="cost" type="number" placeholder="Unit Cost">
     <input id="units" type="number" placeholder="Units">
   </div>
-
   <div class="row">
     <input id="freight" type="number" placeholder="Freight">
     <input id="brokerage" type="number" placeholder="Brokerage">
   </div>
-
   <input id="other" type="number" placeholder="Other Costs">
 </div>
 
-<!-- COUNTRY -->
 <div class="section">
   <h3>Origin</h3>
-
   <select id="country">
     <option value="" disabled selected>Select Country *</option>
     <option value="CN">China</option>
@@ -167,14 +154,9 @@ hr {
   </select>
 </div>
 
-<!-- 232 -->
 <div class="section">
-  <h3 onclick="open232()" style="cursor:pointer;">
-    Section 232 ⓘ
-  </h3>
-
+  <h3 onclick="open232()" style="cursor:pointer;">Section 232 ⓘ</h3>
   <input id="metalPercent" type="number" placeholder="% Metal Content">
-
   <div class="row">
     <select id="productType">
       <option value="">Type</option>
@@ -182,12 +164,16 @@ hr {
       <option value="derivative">Derivative</option>
       <option value="industrial">Industrial</option>
     </select>
-
     <select id="usMaterial">
       <option value="no">Foreign</option>
       <option value="yes">US Material</option>
     </select>
   </div>
+</div>
+
+<div class="section">
+  <h3>Section 122</h3>
+  <div class="helper">Global 10% tariff unless Section 232 applies</div>
 </div>
 
 <button onclick="calculate()">Calculate</button>
@@ -197,27 +183,26 @@ hr {
 </div>
 
 <!-- MODAL -->
-<div id="modal232" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999;">
+<div id="modal232" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7);">
   <div style="background:#161b22; margin:15% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
-
     <h3>Section 232 Explained</h3>
-
-    <ul style="padding-left:18px; line-height:1.5;">
-      <li>Articles made entirely or almost entirely of aluminum, steel, or copper will pay a flat <strong>50%</strong> on their full value — for example, steel coils and aluminum sheet.</li>
-      <li>Derivative articles substantially made of steel, aluminum, or copper will pay a flat <strong>25%</strong> on their full value.</li>
-      <li>Certain metal-intensive industrial equipment and electrical grid equipment will pay <strong>15%</strong> through 2027.</li>
-      <li>Products made abroad but entirely with American steel, aluminum, and copper will be subject to <strong>10%</strong>.</li>
-      <li>Products made of <strong>15% or less</strong> metal will not be subject to Section 232.</li>
+    <ul>
+      <li>50% – Raw metals</li>
+      <li>25% – Derivative products</li>
+      <li>15% – Industrial equipment</li>
+      <li>10% – US metal</li>
+      <li>0% – ≤15% metal</li>
     </ul>
-
     <button onclick="close232()">Close</button>
-
   </div>
 </div>
 
 <script>
 
-// ===== UTIL =====
+let HTS_DATA = [];
+let SECTION301_LIST = [];
+let selectedHTS = null;
+
 function cleanInput() {
   let input = document.getElementById("search");
   input.value = input.value.replace(/[^a-zA-Z0-9]/g, '');
@@ -227,51 +212,31 @@ function normalizeHTS(hts) {
   return (hts || "").replace(/[^0-9]/g, '').substring(0,8);
 }
 
-// ===== CSV PARSER =====
 function parseCSV(text) {
   const rows = [];
   let row = [], current = '', inQuotes = false;
-
   for (let char of text) {
     if (char === '"') inQuotes = !inQuotes;
-    else if (char === ',' && !inQuotes) {
-      row.push(current); current = '';
-    }
+    else if (char === ',' && !inQuotes) { row.push(current); current = ''; }
     else if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (current || row.length) {
-        row.push(current); rows.push(row);
-        row = []; current = '';
-      }
+      if (current || row.length) { row.push(current); rows.push(row); row = []; current = ''; }
     } else current += char;
   }
-
-  if (current || row.length) {
-    row.push(current); rows.push(row);
-  }
-
+  if (current || row.length) { row.push(current); rows.push(row); }
   return rows;
 }
-
-// ===== DATA =====
-let HTS_DATA = [];
-let SECTION301_LIST = [];
-let selectedHTS = null;
 
 async function loadData() {
   let hts = await fetch("tariff_database_2026.csv").then(r => r.text());
   let s301 = await fetch("Listed Commodities.csv").then(r => r.text());
-
   parseHTS(hts);
   parse301(s301);
 }
-
 window.onload = loadData;
 
-// ===== PARSE =====
 function parseHTS(text) {
   let rows = parseCSV(text);
   let headers = rows[0].map(h => h.toLowerCase());
-
   let htsIndex = headers.findIndex(h => h.includes("hts"));
   let descIndex = headers.findIndex(h => h.includes("description"));
   let dutyIndex = headers.findIndex(h => h.includes("mfn") || h.includes("general"));
@@ -279,7 +244,7 @@ function parseHTS(text) {
   HTS_DATA = rows.slice(1).map(cols => ({
     hts: normalizeHTS(cols[htsIndex]),
     originalHTS: cols[htsIndex],
-    description: cols[descIndex] || "",
+    description: cols[descIndex],
     duty: parseFloat((cols[dutyIndex] || "0").replace("%","")) || 0
   }));
 }
@@ -292,7 +257,14 @@ function parse301(text) {
   }));
 }
 
-// ===== SEARCH =====
+function get301Rate(hts) {
+  let clean = normalizeHTS(hts);
+  for (let item of SECTION301_LIST) {
+    if (clean.substring(0,6) === item.hts.substring(0,6)) return item.rate;
+  }
+  return 0;
+}
+
 function searchHTS() {
   let raw = document.getElementById("search").value.toLowerCase();
   let query = raw.replace(/[^0-9]/g, '').substring(0,8);
@@ -300,7 +272,7 @@ function searchHTS() {
   let matches = HTS_DATA.filter(item =>
     (query && item.hts.startsWith(query)) ||
     item.description.toLowerCase().includes(raw)
-  ).slice(0, 10);
+  ).slice(0,10);
 
   let div = document.getElementById("results");
   div.innerHTML = "";
@@ -317,28 +289,14 @@ function searchHTS() {
   });
 }
 
-// ===== 301 =====
-function get301Rate(hts) {
-  let clean = normalizeHTS(hts);
-  for (let item of SECTION301_LIST) {
-    if (clean.substring(0,6) === item.hts.substring(0,6)) {
-      return item.rate;
-    }
-  }
-  return 0;
-}
-
-// ===== CALC =====
 function calculate() {
 
-  if (!selectedHTS) return alert("Select HTS first");
-
+  if (!selectedHTS) return alert("Select HTS");
   let country = document.getElementById("country").value;
   if (!country) return alert("Select Country");
 
   let cost = +document.getElementById("cost").value || 0;
   let units = +document.getElementById("units").value || 1;
-  if (units <= 0) return alert("Units must be > 0");
 
   let freight = +document.getElementById("freight").value || 0;
   let brokerage = +document.getElementById("brokerage").value || 0;
@@ -358,46 +316,57 @@ function calculate() {
   else if (productType === "derivative") section232 = 25;
   else if (productType === "raw") section232 = 50;
 
-  let totalRate = general + section301 + section232;
+  let section122 = section232 > 0 ? 0 : 10;
 
-  let duty = cost * (totalRate / 100);
+  let totalRate = general + section301 + section232 + section122;
+
+  // DUTY BREAKOUT
+  let dutyGeneral = cost * (general / 100);
+  let duty301 = cost * (section301 / 100);
+  let duty232 = cost * (section232 / 100);
+  let duty122 = cost * (section122 / 100);
+
+  let totalDuty = dutyGeneral + duty301 + duty232 + duty122;
+
   let logistics = (freight + brokerage + other) / units;
-  let landed = cost + duty + logistics;
+  let landed = cost + totalDuty + logistics;
 
   document.getElementById("output").innerHTML = `
     <div class="sub">${selectedHTS.originalHTS}</div>
 
     <div class="big">$${landed.toFixed(2)}</div>
-    <div class="sub">Per Unit Landed Cost</div>
+    <div class="sub">TRUE Landed Cost per Unit</div>
 
     <hr>
 
+    <strong>Tariff Rates</strong><br>
     General: ${general}%<br>
     Section 301: ${section301}%<br>
     Section 232: ${section232}%<br>
+    Section 122: ${section122}% ${section232 > 0 ? "(Excluded due to 232)" : ""}<br>
 
     <hr>
 
-    <strong>Total Tariff: ${totalRate}%</strong><br><br>
+    <strong>Duty Breakdown ($)</strong><br>
+    General: $${dutyGeneral.toFixed(2)}<br>
+    301: $${duty301.toFixed(2)}<br>
+    232: $${duty232.toFixed(2)}<br>
+    122: $${duty122.toFixed(2)}<br>
 
-    Duty: $${duty.toFixed(2)}<br>
+    <hr>
+
+    <strong>Total Duty:</strong> $${totalDuty.toFixed(2)}<br>
     Logistics/unit: $${logistics.toFixed(2)}
   `;
 }
 
-// ===== MODAL =====
-function open232() {
-  document.getElementById("modal232").style.display = "block";
-}
-
-function close232() {
-  document.getElementById("modal232").style.display = "none";
-}
-
-window.onclick = function(e) {
-  let modal = document.getElementById("modal232");
-  if (e.target === modal) modal.style.display = "none";
-}
+// MODAL
+function open232(){ document.getElementById("modal232").style.display="block"; }
+function close232(){ document.getElementById("modal232").style.display="none"; }
+window.onclick = e => {
+  let m=document.getElementById("modal232");
+  if(e.target===m) m.style.display="none";
+};
 
 </script>
 
