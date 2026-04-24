@@ -5,16 +5,54 @@
 <title>HTS Tariff Engine</title>
 
 <style>
-body { font-family: Arial; background: #111; color: white; text-align: center; }
-header { background: #2196f3; padding: 15px; font-size: 20px; }
-.container { padding: 15px; }
+body {
+  font-family: Arial;
+  background: #111;
+  color: white;
+  margin: 0;
+}
+
+header {
+  background: #2196f3;
+  padding: 15px;
+  font-size: 20px;
+  text-align: center;
+}
+
+.container {
+  max-width: 520px;
+  margin: auto;
+  padding: 15px;
+}
+
+.section {
+  margin-top: 20px;
+  padding: 12px;
+  background: #1a1a1a;
+  border-radius: 10px;
+}
+
+h3 {
+  margin-bottom: 8px;
+  text-align: left;
+}
 
 input, select {
-  width: 85%;
+  width: 100%;
   padding: 10px;
-  margin: 6px;
+  margin: 6px 0;
   border-radius: 8px;
   border: none;
+  box-sizing: border-box;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+
+.row input, .row select {
+  width: 50%;
 }
 
 button {
@@ -24,6 +62,8 @@ button {
   background: #2196f3;
   color: white;
   font-size: 16px;
+  width: 100%;
+  margin-top: 10px;
 }
 
 .result {
@@ -37,13 +77,22 @@ button {
   padding: 10px;
   border-bottom: 1px solid #333;
   cursor: pointer;
-  text-align: left;
 }
 
-.item:hover { background: #333; }
+.item:hover {
+  background: #333;
+}
 
-#status { margin: 10px; color: #aaa; }
-.helper { font-size: 12px; color: #aaa; }
+.helper {
+  font-size: 12px;
+  color: #aaa;
+}
+
+#status {
+  text-align: center;
+  font-size: 12px;
+  color: #aaa;
+}
 </style>
 </head>
 
@@ -55,54 +104,76 @@ button {
 
 <div id="status">Loading data...</div>
 
-<h3>Update Data (Optional)</h3>
-<input type="file" id="fileHTS" accept=".csv"><br>
-<input type="file" id="file301" accept=".csv"><br>
-<button onclick="resetData()">Reset to Default Data</button>
+<!-- DATA -->
+<div class="section">
+  <h3>Update Data (Optional)</h3>
+  <input type="file" id="fileHTS" accept=".csv">
+  <input type="file" id="file301" accept=".csv">
+  <button onclick="resetData()">Reset to Default Data</button>
+</div>
 
-<hr>
+<!-- HTS -->
+<div class="section">
+  <h3>HTS Lookup</h3>
 
-<input id="search" placeholder="Enter HTS (no decimals, 6–8 digits) or description" oninput="cleanInput()">
-<div class="helper">Example: 481490 or 48149002 (no dots or suffix needed)</div>
+  <input id="search" placeholder="Enter HTS (6–8 digits) or description" oninput="cleanInput()">
+  <div class="helper">Example: 481490 or 48149002</div>
 
-<button onclick="searchHTS()">Search</button>
+  <button onclick="searchHTS()">Search</button>
 
-<div id="results"></div>
+  <div id="results"></div>
+</div>
 
-<hr>
+<!-- COST -->
+<div class="section">
+  <h3>Cost Inputs</h3>
 
-<input id="cost" type="number" placeholder="Unit Cost ($)">
-<input id="units" type="number" placeholder="Total Units">
+  <div class="row">
+    <input id="cost" type="number" placeholder="Unit Cost ($)">
+    <input id="units" type="number" placeholder="Units">
+  </div>
 
-<input id="freight" type="number" placeholder="Total Freight ($)">
-<input id="brokerage" type="number" placeholder="Total Brokerage ($)">
-<input id="other" type="number" placeholder="Other Costs ($)">
+  <div class="row">
+    <input id="freight" type="number" placeholder="Freight ($)">
+    <input id="brokerage" type="number" placeholder="Brokerage ($)">
+  </div>
 
-<select id="country">
-  <option value="" disabled selected>Select Country of Origin *</option>
-  <option value="CN">China</option>
-  <option value="VN">Vietnam</option>
-  <option value="IN">India</option>
-  <option value="MX">Mexico</option>
-</select>
+  <input id="other" type="number" placeholder="Other Costs ($)">
+</div>
 
-<hr>
+<!-- COUNTRY -->
+<div class="section">
+  <h3>Origin</h3>
 
-<h3>Section 232 Inputs</h3>
+  <select id="country">
+    <option value="" disabled selected>Select Country *</option>
+    <option value="CN">China</option>
+    <option value="VN">Vietnam</option>
+    <option value="IN">India</option>
+    <option value="MX">Mexico</option>
+  </select>
+</div>
 
-<input id="metalPercent" type="number" placeholder="% Metal Content">
+<!-- 232 -->
+<div class="section">
+  <h3>Section 232</h3>
 
-<select id="productType">
-  <option value="">Product Type</option>
-  <option value="raw">Raw Metal</option>
-  <option value="derivative">Derivative Article</option>
-  <option value="industrial">Industrial/Grid Equipment</option>
-</select>
+  <input id="metalPercent" type="number" placeholder="% Metal Content">
 
-<select id="usMaterial">
-  <option value="no">Foreign Metal</option>
-  <option value="yes">Made with US Metal</option>
-</select>
+  <div class="row">
+    <select id="productType">
+      <option value="">Product Type</option>
+      <option value="raw">Raw</option>
+      <option value="derivative">Derivative</option>
+      <option value="industrial">Industrial</option>
+    </select>
+
+    <select id="usMaterial">
+      <option value="no">Foreign Metal</option>
+      <option value="yes">US Metal</option>
+    </select>
+  </div>
+</div>
 
 <button onclick="calculate()">Calculate</button>
 
@@ -112,6 +183,9 @@ button {
 
 <script>
 
+// =======================
+// GLOBALS
+// =======================
 let HTS_DATA = [];
 let SECTION301_LIST = [];
 let selectedHTS = null;
@@ -126,12 +200,10 @@ function cleanInput() {
 }
 
 // =======================
-// NORMALIZE HTS (IGNORE SUFFIX)
+// NORMALIZE HTS
 // =======================
 function normalizeHTS(hts) {
-  return hts
-    .replace(/[^0-9]/g, '') // remove dots/spaces
-    .substring(0, 8);       // keep first 8 digits only
+  return hts.replace(/[^0-9]/g, '').substring(0,8);
 }
 
 // =======================
@@ -265,15 +337,14 @@ function parse301(text) {
 }
 
 // =======================
-// MATCH 301 (6 DIGIT MATCH)
+// MATCH 301
 // =======================
 function get301Rate(hts) {
-  let cleanHTS = normalizeHTS(hts);
+  let clean = normalizeHTS(hts);
 
   for (let item of SECTION301_LIST) {
-    let listHTS = normalizeHTS(item.hts);
-
-    if (cleanHTS.substring(0,6) === listHTS.substring(0,6)) {
+    let list = normalizeHTS(item.hts);
+    if (clean.substring(0,6) === list.substring(0,6)) {
       return item.rate;
     }
   }
@@ -286,13 +357,13 @@ function get301Rate(hts) {
 function searchHTS() {
   if (!dataReady) return alert("Data still loading");
 
-  let rawQuery = document.getElementById("search").value.toLowerCase();
-  let query = rawQuery.replace(/[^0-9]/g, '').substring(0,8);
+  let raw = document.getElementById("search").value.toLowerCase();
+  let query = raw.replace(/[^0-9]/g, '').substring(0,8);
 
   let matches = HTS_DATA.filter(item =>
     item.hts.startsWith(query) ||
-    item.description.toLowerCase().includes(rawQuery)
-  ).slice(0, 15);
+    item.description.toLowerCase().includes(raw)
+  ).slice(0,15);
 
   let resultsDiv = document.getElementById("results");
   resultsDiv.innerHTML = "<h3>Select HTS</h3>";
@@ -323,7 +394,7 @@ function calculate() {
 
   if (!countrySelect.value) {
     countrySelect.style.border = "2px solid red";
-    alert("Country of Origin is required");
+    alert("Country required");
     return;
   } else {
     countrySelect.style.border = "none";
@@ -356,7 +427,7 @@ function calculate() {
   let duty = cost * (totalRate / 100);
 
   let logisticsPerUnit = (freight + brokerage + other) / units;
-  let landedPerUnit = cost + duty + logisticsPerUnit;
+  let landed = cost + duty + logisticsPerUnit;
 
   document.getElementById("output").innerHTML = `
     <h3>${selectedHTS.originalHTS}</h3>
@@ -377,7 +448,7 @@ function calculate() {
 
     <hr>
 
-    <strong>TRUE Landed Cost per Unit: $${landedPerUnit.toFixed(2)}</strong>
+    <strong>TRUE Landed Cost per Unit: $${landed.toFixed(2)}</strong>
   `;
 }
 
