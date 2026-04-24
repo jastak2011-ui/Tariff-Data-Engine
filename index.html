@@ -217,23 +217,19 @@ ul li {
 
 <script>
 
-let HTS_DATA = [];
-let SECTION301_LIST = [];
-let selectedHTS = null;
+let HTS_DATA=[],SECTION301_LIST=[],selectedHTS=null;
 
-// INPUT CLEAN
-function cleanInput() {
+function cleanInput(){
   document.getElementById("search").value =
-    document.getElementById("search").value.replace(/[^a-zA-Z0-9]/g,'');
+  document.getElementById("search").value.replace(/[^a-zA-Z0-9]/g,'');
 }
 
 function normalizeHTS(x){
   return (x||"").replace(/[^0-9]/g,'').substring(0,8);
 }
 
-// CSV PARSER
 function parseCSV(t){
-  const r=[]; let row=[],c='',q=false;
+  const r=[];let row=[],c='',q=false;
   for(let ch of t){
     if(ch=='"')q=!q;
     else if(ch==','&&!q){row.push(c);c='';}
@@ -245,16 +241,13 @@ function parseCSV(t){
   return r;
 }
 
-// LOAD DATA
 async function loadData(){
-  let h = await fetch("tariff_database_2026.csv").then(r=>r.text());
-  let s = await fetch("Listed Commodities.csv").then(r=>r.text());
-  parseHTS(h);
-  parse301(s);
+  let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
+  let s=await fetch("Listed Commodities.csv").then(r=>r.text());
+  parseHTS(h);parse301(s);
 }
-window.onload = loadData;
+window.onload=loadData;
 
-// PARSE
 function parseHTS(t){
   let r=parseCSV(t);
   let h=r[0].map(x=>x.toLowerCase());
@@ -279,32 +272,6 @@ function parse301(t){
   }));
 }
 
-// SEARCH
-function searchHTS(){
-  let raw=document.getElementById("search").value.toLowerCase();
-  let q=raw.replace(/[^0-9]/g,'').substring(0,8);
-
-  let matches=HTS_DATA.filter(i =>
-    (q && i.hts.startsWith(q)) ||
-    i.description.toLowerCase().includes(raw)
-  ).slice(0,10);
-
-  let div=document.getElementById("results");
-  div.innerHTML="";
-
-  matches.forEach(i=>{
-    let el=document.createElement("div");
-    el.className="item";
-    el.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
-    el.onclick=()=>{
-      selectedHTS=i;
-      div.innerHTML=`Selected: ${i.originalHTS}`;
-    };
-    div.appendChild(el);
-  });
-}
-
-// 301
 function get301Rate(h){
   let c=normalizeHTS(h);
   for(let i of SECTION301_LIST){
@@ -313,7 +280,27 @@ function get301Rate(h){
   return 0;
 }
 
-// CALCULATE (FIXED)
+function searchHTS(){
+  let raw=document.getElementById("search").value.toLowerCase();
+  let q=raw.replace(/[^0-9]/g,'').substring(0,8);
+
+  let m=HTS_DATA.filter(i=>
+    (q && i.hts.startsWith(q)) ||
+    i.description.toLowerCase().includes(raw)
+  ).slice(0,10);
+
+  let div=document.getElementById("results");
+  div.innerHTML="";
+
+  m.forEach(i=>{
+    let d=document.createElement("div");
+    d.className="item";
+    d.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
+    d.onclick=()=>{selectedHTS=i;div.innerHTML=`Selected: ${i.originalHTS}`};
+    div.appendChild(d);
+  });
+}
+
 function calculate(){
 
   if(!selectedHTS) return alert("Select HTS");
@@ -349,11 +336,18 @@ function calculate(){
   let d122 = costVal*(s122/100);
 
   let totalDuty = dGen+d301+d232+d122;
+  let goodsValue = costVal * unitsVal;
+
   let landed = costVal + totalDuty + (freightVal+brokerageVal+otherVal)/unitsVal;
 
   document.getElementById("output").innerHTML = `
     <div class="big">$${landed.toFixed(2)}</div>
     <div class="sub">Per Unit Landed Cost</div>
+
+    <hr>
+
+    <strong>Goods Value:</strong> $${goodsValue.toFixed(2)}<br>
+    <strong>Total Duty Impact:</strong> $${totalDuty.toFixed(2)}
 
     <hr>
 
@@ -368,17 +362,13 @@ function calculate(){
     301: $${d301.toFixed(2)}<br>
     232: $${d232.toFixed(2)}<br>
     122: $${d122.toFixed(2)}<br>
-
-    <hr>
-    Total Duty: $${totalDuty.toFixed(2)}
   `;
 }
 
-// MODALS
-function open232(){document.getElementById("modal232").style.display="block";}
-function close232(){document.getElementById("modal232").style.display="none";}
-function open122(){document.getElementById("modal122").style.display="block";}
-function close122(){document.getElementById("modal122").style.display="none";}
+function open232(){modal232.style.display="block";}
+function close232(){modal232.style.display="none";}
+function open122(){modal122.style.display="block";}
+function close122(){modal122.style.display="none";}
 
 window.onclick=e=>{
   if(e.target===modal232)modal232.style.display="none";
