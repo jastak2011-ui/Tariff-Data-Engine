@@ -27,7 +27,6 @@ header {
   padding: 15px;
 }
 
-/* CARDS */
 .section {
   background: #161b22;
   border-radius: 14px;
@@ -36,14 +35,12 @@ header {
   box-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }
 
-/* TITLES */
 h3 {
   margin: 0 0 10px 0;
-  font-size: 15px;
+  font-size: 14px;
   color: #8b949e;
 }
 
-/* INPUTS */
 input, select {
   width: 100%;
   padding: 11px;
@@ -52,15 +49,8 @@ input, select {
   border: 1px solid #30363d;
   background: #0d1117;
   color: white;
-  box-sizing: border-box;
 }
 
-input:focus, select:focus {
-  outline: none;
-  border-color: #58a6ff;
-}
-
-/* GRID */
 .row {
   display: flex;
   gap: 10px;
@@ -70,7 +60,6 @@ input:focus, select:focus {
   width: 50%;
 }
 
-/* BUTTON */
 button {
   padding: 14px;
   border-radius: 12px;
@@ -83,15 +72,6 @@ button {
   font-weight: 600;
 }
 
-/* STICKY BUTTON */
-.sticky {
-  position: sticky;
-  bottom: 0;
-  background: #0d1117;
-  padding-top: 10px;
-}
-
-/* RESULTS */
 .result {
   margin-top: 16px;
   background: #161b22;
@@ -99,21 +79,22 @@ button {
   padding: 15px;
 }
 
-/* BIG NUMBER */
 .big {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: bold;
   color: #3fb950;
-  margin-top: 8px;
 }
 
-/* SUB TEXT */
 .sub {
   color: #8b949e;
   font-size: 13px;
 }
 
-/* SEARCH RESULTS */
+.helper {
+  font-size: 12px;
+  color: #8b949e;
+}
+
 .item {
   padding: 10px;
   border-bottom: 1px solid #30363d;
@@ -124,16 +105,10 @@ button {
   background: #21262d;
 }
 
-.helper {
-  font-size: 12px;
-  color: #8b949e;
-}
-
-#status {
-  text-align: center;
-  font-size: 12px;
-  color: #8b949e;
-  margin-bottom: 5px;
+hr {
+  border: none;
+  border-top: 1px solid #30363d;
+  margin: 12px 0;
 }
 </style>
 </head>
@@ -143,8 +118,6 @@ button {
 <header>HTS Tariff Engine</header>
 
 <div class="container">
-
-<div id="status">Loading data...</div>
 
 <!-- HTS -->
 <div class="section">
@@ -209,95 +182,83 @@ button {
   </div>
 </div>
 
-<!-- CALCULATE -->
-<div class="sticky">
-  <button onclick="calculate()">Calculate</button>
-</div>
+<button onclick="calculate()">Calculate</button>
 
-<!-- OUTPUT -->
 <div id="output" class="result"></div>
 
 </div>
 
 <script>
 
-// --- SAME LOGIC (unchanged except formatting tweaks) ---
-
+// =======================
+// GLOBALS
+// =======================
 let HTS_DATA = [];
 let SECTION301_LIST = [];
 let selectedHTS = null;
-let dataReady = false;
 
+// =======================
+// CLEAN INPUT
+// =======================
 function cleanInput() {
   let input = document.getElementById("search");
   input.value = input.value.replace(/[^a-zA-Z0-9]/g, '');
 }
 
+// =======================
+// NORMALIZE HTS
+// =======================
 function normalizeHTS(hts) {
   return hts.replace(/[^0-9]/g, '').substring(0,8);
 }
 
+// =======================
+// CSV PARSER
+// =======================
 function parseCSV(text) {
-  const rows = [];
-  let row = [], current = '', inQuotes = false;
-
-  for (let char of text) {
-    if (char === '"') inQuotes = !inQuotes;
-    else if (char === ',' && !inQuotes) {
-      row.push(current); current = '';
-    }
-    else if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (current || row.length) {
-        row.push(current); rows.push(row);
-        row = []; current = '';
-      }
-    } else current += char;
-  }
-
-  if (current || row.length) {
-    row.push(current); rows.push(row);
-  }
-
-  return rows;
+  return text.split("\n").map(row => row.split(","));
 }
 
-async function loadDefaultData() {
-  let htsText = await fetch("tariff_database_2026.csv").then(r => r.text());
-  let s301Text = await fetch("Listed Commodities.csv").then(r => r.text());
+// =======================
+// LOAD DATA
+// =======================
+async function loadData() {
+  let hts = await fetch("tariff_database_2026.csv").then(r => r.text());
+  let s301 = await fetch("Listed Commodities.csv").then(r => r.text());
 
-  parseHTS(htsText);
-  parse301(s301Text);
-
-  dataReady = true;
-  document.getElementById("status").innerText = "Data loaded ✓";
+  parseHTS(hts);
+  parse301(s301);
 }
 
-window.onload = loadDefaultData;
+window.onload = loadData;
 
+// =======================
+// PARSE HTS
+// =======================
 function parseHTS(text) {
   let rows = parseCSV(text);
-  let headers = rows[0].map(h => h.toLowerCase());
-
-  let htsIndex = headers.findIndex(h => h.includes("hts"));
-  let descIndex = headers.findIndex(h => h.includes("description"));
-  let dutyIndex = headers.findIndex(h => h.includes("mfn") || h.includes("general"));
-
-  HTS_DATA = rows.slice(1).map(cols => ({
-    hts: normalizeHTS(cols[htsIndex]),
-    originalHTS: cols[htsIndex],
-    description: cols[descIndex],
-    duty: parseFloat((cols[dutyIndex] || "0").replace("%","")) || 0
+  HTS_DATA = rows.slice(1).map(r => ({
+    hts: normalizeHTS(r[0]),
+    originalHTS: r[0],
+    description: r[1],
+    duty: parseFloat((r[2] || "0").replace("%","")) || 0
   }));
 }
 
+// =======================
+// PARSE 301
+// =======================
 function parse301(text) {
-  let rows = parseCSV(text).slice(1);
-  SECTION301_LIST = rows.map(cols => ({
-    hts: normalizeHTS(cols[0]),
-    rate: parseFloat((cols[2] || "0").replace("%","")) || 0
+  let rows = parseCSV(text);
+  SECTION301_LIST = rows.slice(1).map(r => ({
+    hts: normalizeHTS(r[0]),
+    rate: parseFloat((r[2] || "0").replace("%","")) || 0
   }));
 }
 
+// =======================
+// MATCH 301
+// =======================
 function get301Rate(hts) {
   let clean = normalizeHTS(hts);
   for (let item of SECTION301_LIST) {
@@ -308,48 +269,68 @@ function get301Rate(hts) {
   return 0;
 }
 
+// =======================
+// SEARCH
+// =======================
 function searchHTS() {
-  if (!dataReady) return;
-
   let raw = document.getElementById("search").value.toLowerCase();
   let query = raw.replace(/[^0-9]/g, '').substring(0,8);
 
   let matches = HTS_DATA.filter(item =>
     item.hts.startsWith(query) ||
     item.description.toLowerCase().includes(raw)
-  ).slice(0,15);
+  ).slice(0,10);
 
-  let resultsDiv = document.getElementById("results");
-  resultsDiv.innerHTML = "";
+  let div = document.getElementById("results");
+  div.innerHTML = "";
 
   matches.forEach(item => {
-    let div = document.createElement("div");
-    div.className = "item";
-    div.innerHTML = `<strong>${item.originalHTS}</strong><br><small>${item.description}</small>`;
-    div.onclick = () => {
+    let el = document.createElement("div");
+    el.className = "item";
+    el.innerHTML = `<strong>${item.originalHTS}</strong><br><small>${item.description}</small>`;
+    el.onclick = () => {
       selectedHTS = item;
-      resultsDiv.innerHTML = `<strong>Selected:</strong><br>${item.originalHTS}`;
+      div.innerHTML = `<strong>Selected:</strong><br>${item.originalHTS}`;
     };
-    resultsDiv.appendChild(div);
+    div.appendChild(el);
   });
 }
 
+// =======================
+// CALCULATE
+// =======================
 function calculate() {
-  if (!selectedHTS) return alert("Select HTS");
+
+  if (!selectedHTS) return alert("Select HTS first");
 
   let country = document.getElementById("country").value;
   if (!country) return alert("Select Country");
 
   let cost = +document.getElementById("cost").value || 0;
   let units = +document.getElementById("units").value || 1;
+
   let freight = +document.getElementById("freight").value || 0;
   let brokerage = +document.getElementById("brokerage").value || 0;
   let other = +document.getElementById("other").value || 0;
 
+  let metalPercent = +document.getElementById("metalPercent").value || 0;
+  let productType = document.getElementById("productType").value;
+  let usMaterial = document.getElementById("usMaterial").value;
+
   let general = selectedHTS.duty;
   let section301 = country === "CN" ? get301Rate(selectedHTS.hts) : 0;
 
-  let totalRate = general + section301;
+  // SECTION 232 LOGIC
+  let section232 = 0;
+
+  if (metalPercent <= 15) section232 = 0;
+  else if (usMaterial === "yes") section232 = 10;
+  else if (productType === "industrial") section232 = 15;
+  else if (productType === "derivative") section232 = 25;
+  else if (productType === "raw") section232 = 50;
+
+  let totalRate = general + section301 + section232;
+
   let duty = cost * (totalRate / 100);
   let logistics = (freight + brokerage + other) / units;
   let landed = cost + duty + logistics;
@@ -364,8 +345,12 @@ function calculate() {
 
     General: ${general}%<br>
     Section 301: ${section301}%<br>
+    Section 232: ${section232}%<br>
 
-    <br>
+    <hr>
+
+    <strong>Total Tariff: ${totalRate}%</strong><br><br>
+
     Duty: $${duty.toFixed(2)}<br>
     Logistics/unit: $${logistics.toFixed(2)}
   `;
