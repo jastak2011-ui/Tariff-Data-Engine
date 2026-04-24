@@ -57,7 +57,13 @@ ul li {margin-bottom:8px;}
 <option value="CN">China</option>
 <option value="VN">Vietnam</option>
 <option value="IN">India</option>
+<option value="BD">Bangladesh</option>
+<option value="TH">Thailand</option>
 <option value="MX">Mexico</option>
+<option value="CA">Canada</option>
+<option value="DE">Germany</option>
+<option value="IT">Italy</option>
+<option value="GB">United Kingdom</option>
 </select>
 </div>
 
@@ -117,7 +123,7 @@ ul li {margin-bottom:8px;}
 let HTS_DATA=[],SECTION301_LIST=[],selectedHTS=null;
 
 function cleanInput(){
-document.getElementById("search").value=
+document.getElementById("search").value =
 document.getElementById("search").value.replace(/[^a-zA-Z0-9]/g,'');
 }
 
@@ -211,7 +217,12 @@ let ptype=document.getElementById("productType").value;
 let us=document.getElementById("usMaterial").value;
 
 let gen=selectedHTS.duty;
-let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
+
+// ✅ 301 ONLY IF CHINA
+let s301 = 0;
+if (ctry === "CN") {
+  s301 = get301Rate(selectedHTS.hts);
+}
 
 let s232=0;
 if(metal<=15)s232=0;
@@ -224,7 +235,6 @@ let s122=s232>0?0:10;
 
 let goodsValue=costVal*unitsVal;
 let totalRate=gen+s301+s232+s122;
-
 let totalDuty=goodsValue*(totalRate/100);
 
 let dGenUnit=(goodsValue*(gen/100))/unitsVal;
@@ -234,8 +244,13 @@ let d122Unit=(goodsValue*(s122/100))/unitsVal;
 
 let dutyPerUnit=totalDuty/unitsVal;
 let logisticsPerUnit=(freightVal+brokerageVal+otherVal)/unitsVal;
-
 let landed=costVal+dutyPerUnit+logisticsPerUnit;
+
+// ✅ CONDITIONAL 301 DISPLAY
+let section301HTML = "";
+if (ctry === "CN") {
+  section301HTML = `Section 301 (${s301}%): $${d301Unit.toFixed(2)}<br>`;
+}
 
 document.getElementById("output").innerHTML=`
 <div class="big">$${landed.toFixed(2)}</div>
@@ -250,7 +265,7 @@ document.getElementById("output").innerHTML=`
 
 <strong>Duty per Unit</strong><br>
 General Rate of Duty (${gen}%): $${dGenUnit.toFixed(2)}<br>
-Section 301 (${s301}%): $${d301Unit.toFixed(2)}<br>
+${section301HTML}
 Section 232 (${s232}%): $${d232Unit.toFixed(2)}<br>
 Section 122 (${s122}% ${s232>0?"excluded":""}): $${d122Unit.toFixed(2)}<br>
 
