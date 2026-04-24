@@ -115,7 +115,6 @@ ul li {
 
 <div class="container">
 
-<!-- HTS -->
 <div class="section">
   <h3>HTS Lookup</h3>
   <input id="search" placeholder="Enter HTS or description" oninput="cleanInput()">
@@ -123,7 +122,6 @@ ul li {
   <div id="results"></div>
 </div>
 
-<!-- COST -->
 <div class="section">
   <h3>Cost Inputs</h3>
   <div class="row">
@@ -137,7 +135,6 @@ ul li {
   <input id="other" type="number" placeholder="Other Costs">
 </div>
 
-<!-- COUNTRY -->
 <div class="section">
   <h3>Origin</h3>
   <select id="country">
@@ -149,7 +146,6 @@ ul li {
   </select>
 </div>
 
-<!-- 232 -->
 <div class="section">
   <h3 onclick="open232()" style="cursor:pointer;">Section 232 ⓘ</h3>
   <input id="metalPercent" type="number" placeholder="% Metal Content">
@@ -167,7 +163,6 @@ ul li {
   </div>
 </div>
 
-<!-- 122 -->
 <div class="section">
   <h3 onclick="open122()" style="cursor:pointer;">Section 122 ⓘ</h3>
   <div class="helper">10% global tariff unless Section 232 applies</div>
@@ -179,7 +174,7 @@ ul li {
 
 </div>
 
-<!-- MODAL 232 -->
+<!-- MODALS -->
 <div id="modal232" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);">
   <div style="background:#161b22; margin:15% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
     <h3>Section 232</h3>
@@ -194,23 +189,12 @@ ul li {
   </div>
 </div>
 
-<!-- MODAL 122 -->
 <div id="modal122" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);">
   <div style="background:#161b22; margin:15% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
     <h3>Section 122 Explained</h3>
-
-    <p>
-    Section 122 of the Trade Act of 1974 authorizes the President to impose a temporary import surcharge of up to 15% for a maximum of 150 days to address large and serious U.S. balance-of-payments deficits.
-    </p>
-
-    <p>
-    Following the Supreme Court's February 2026 ruling in <em>Learning Resources, Inc. v. Trump</em>, the Administration invoked Section 122 to impose a <strong>10% global tariff</strong> effective February 24, 2026 through July 24, 2026.
-    </p>
-
-    <p>
-    Goods already subject to <strong>Section 232 tariffs</strong> are excluded and are not subject to both duties simultaneously.
-    </p>
-
+    <p>Section 122 allows a temporary tariff (up to 15%) for balance-of-payments issues.</p>
+    <p>A 10% global tariff was imposed Feb 24, 2026 through July 24, 2026.</p>
+    <p>Goods under Section 232 are excluded.</p>
     <button onclick="close122()">Close</button>
   </div>
 </div>
@@ -330,15 +314,15 @@ function calculate(){
 
   let s122 = s232>0 ? 0 : 10;
 
-  let dGen = costVal*(gen/100);
-  let d301 = costVal*(s301/100);
-  let d232 = costVal*(s232/100);
-  let d122 = costVal*(s122/100);
-
-  let totalDuty = dGen+d301+d232+d122;
   let goodsValue = costVal * unitsVal;
+  let totalRate = gen + s301 + s232 + s122;
 
-  let landed = costVal + totalDuty + (freightVal+brokerageVal+otherVal)/unitsVal;
+  let totalDuty = goodsValue * (totalRate/100);
+
+  let dutyPerUnit = totalDuty / unitsVal;
+  let logisticsPerUnit = (freightVal+brokerageVal+otherVal)/unitsVal;
+
+  let landed = costVal + dutyPerUnit + logisticsPerUnit;
 
   document.getElementById("output").innerHTML = `
     <div class="big">$${landed.toFixed(2)}</div>
@@ -351,17 +335,9 @@ function calculate(){
 
     <hr>
 
-    General: ${gen}%<br>
-    301: ${s301}%<br>
-    232: ${s232}%<br>
-    122: ${s122}% ${s232>0?"(excluded)":""}<br>
-
-    <hr>
-
-    General: $${dGen.toFixed(2)}<br>
-    301: $${d301.toFixed(2)}<br>
-    232: $${d232.toFixed(2)}<br>
-    122: $${d122.toFixed(2)}<br>
+    Total Tariff Rate: ${totalRate}%<br>
+    Section 232: ${s232}%<br>
+    Section 122: ${s122}% ${s232>0?"(excluded)":""}
   `;
 }
 
