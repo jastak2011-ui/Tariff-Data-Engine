@@ -49,7 +49,7 @@ input, select {
   border: 1px solid #30363d;
   background: #0d1117;
   color: white;
-  font-size: 16px;
+  font-size: 16px; /* iPhone zoom fix */
 }
 
 .row {
@@ -106,6 +106,10 @@ button {
   background: #21262d;
 }
 
+ul li {
+  margin-bottom: 8px;
+}
+
 hr {
   border: none;
   border-top: 1px solid #30363d;
@@ -125,7 +129,7 @@ hr {
   <h3>HTS Lookup</h3>
 
   <input id="search" placeholder="Enter HTS (6–8 digits) or description" oninput="cleanInput()">
-  <div class="helper">Example: 481490 or 48149002</div>
+  <div class="helper">You can enter 6–10 digits. System ignores formatting.</div>
 
   <button onclick="searchHTS()">Search</button>
 
@@ -164,7 +168,9 @@ hr {
 
 <!-- 232 -->
 <div class="section">
-  <h3>Section 232</h3>
+  <h3 onclick="open232()" style="cursor:pointer;">
+    Section 232 ⓘ
+  </h3>
 
   <input id="metalPercent" type="number" placeholder="% Metal Content">
 
@@ -189,85 +195,78 @@ hr {
 
 </div>
 
+<!-- MODAL -->
+<div id="modal232" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999;">
+  <div style="background:#161b22; margin:15% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
+
+    <h3>Section 232 Explained</h3>
+
+    <ul style="padding-left:18px; line-height:1.5;">
+      <li>Articles made entirely or almost entirely of aluminum, steel, or copper will pay a flat <strong>50%</strong> on their full value — for example, steel coils and aluminum sheet.</li>
+      <li>Derivative articles substantially made of steel, aluminum, or copper will pay a flat <strong>25%</strong> on their full value.</li>
+      <li>Certain metal-intensive industrial equipment and electrical grid equipment will pay <strong>15%</strong> through 2027.</li>
+      <li>Products made abroad but entirely with American steel, aluminum, and copper will be subject to <strong>10%</strong>.</li>
+      <li>Products made of <strong>15% or less</strong> metal will not be subject to Section 232.</li>
+    </ul>
+
+    <button onclick="close232()">Close</button>
+
+  </div>
+</div>
+
 <script>
 
-// =======================
-// GLOBALS
-// =======================
-let HTS_DATA = [];
-let SECTION301_LIST = [];
-let selectedHTS = null;
-
-// =======================
-// CLEAN INPUT
-// =======================
+// ===== UTIL =====
 function cleanInput() {
   let input = document.getElementById("search");
   input.value = input.value.replace(/[^a-zA-Z0-9]/g, '');
 }
 
-// =======================
-// NORMALIZE HTS
-// =======================
 function normalizeHTS(hts) {
   return (hts || "").replace(/[^0-9]/g, '').substring(0,8);
 }
 
-// =======================
-// ROBUST CSV PARSER
-// =======================
+// ===== CSV PARSER =====
 function parseCSV(text) {
   const rows = [];
-  let row = [];
-  let current = '';
-  let inQuotes = false;
+  let row = [], current = '', inQuotes = false;
 
   for (let char of text) {
     if (char === '"') inQuotes = !inQuotes;
     else if (char === ',' && !inQuotes) {
-      row.push(current);
-      current = '';
+      row.push(current); current = '';
     }
     else if ((char === '\n' || char === '\r') && !inQuotes) {
       if (current || row.length) {
-        row.push(current);
-        rows.push(row);
-        row = [];
-        current = '';
+        row.push(current); rows.push(row);
+        row = []; current = '';
       }
     } else current += char;
   }
 
   if (current || row.length) {
-    row.push(current);
-    rows.push(row);
+    row.push(current); rows.push(row);
   }
 
   return rows;
 }
 
-// =======================
-// LOAD DATA
-// =======================
+// ===== DATA =====
+let HTS_DATA = [];
+let SECTION301_LIST = [];
+let selectedHTS = null;
+
 async function loadData() {
-  try {
-    let hts = await fetch("tariff_database_2026.csv").then(r => r.text());
-    let s301 = await fetch("Listed Commodities.csv").then(r => r.text());
+  let hts = await fetch("tariff_database_2026.csv").then(r => r.text());
+  let s301 = await fetch("Listed Commodities.csv").then(r => r.text());
 
-    parseHTS(hts);
-    parse301(s301);
-
-    console.log("Data loaded:", HTS_DATA.length);
-  } catch (err) {
-    console.error("Data load error", err);
-  }
+  parseHTS(hts);
+  parse301(s301);
 }
 
 window.onload = loadData;
 
-// =======================
-// PARSE HTS
-// =======================
+// ===== PARSE =====
 function parseHTS(text) {
   let rows = parseCSV(text);
   let headers = rows[0].map(h => h.toLowerCase());
@@ -284,9 +283,6 @@ function parseHTS(text) {
   }));
 }
 
-// =======================
-// PARSE 301
-// =======================
 function parse301(text) {
   let rows = parseCSV(text);
   SECTION301_LIST = rows.slice(1).map(cols => ({
@@ -295,23 +291,7 @@ function parse301(text) {
   }));
 }
 
-// =======================
-// MATCH 301
-// =======================
-function get301Rate(hts) {
-  let clean = normalizeHTS(hts);
-
-  for (let item of SECTION301_LIST) {
-    if (clean.substring(0,6) === item.hts.substring(0,6)) {
-      return item.rate;
-    }
-  }
-  return 0;
-}
-
-// =======================
-// SEARCH
-// =======================
+// ===== SEARCH =====
 function searchHTS() {
   let raw = document.getElementById("search").value.toLowerCase();
   let query = raw.replace(/[^0-9]/g, '').substring(0,8);
@@ -327,21 +307,27 @@ function searchHTS() {
   matches.forEach(item => {
     let el = document.createElement("div");
     el.className = "item";
-
     el.innerHTML = `<strong>${item.originalHTS}</strong><br><small>${item.description}</small>`;
-
     el.onclick = () => {
       selectedHTS = item;
       div.innerHTML = `<strong>Selected:</strong><br>${item.originalHTS}`;
     };
-
     div.appendChild(el);
   });
 }
 
-// =======================
-// CALCULATE
-// =======================
+// ===== 301 =====
+function get301Rate(hts) {
+  let clean = normalizeHTS(hts);
+  for (let item of SECTION301_LIST) {
+    if (clean.substring(0,6) === item.hts.substring(0,6)) {
+      return item.rate;
+    }
+  }
+  return 0;
+}
+
+// ===== CALC =====
 function calculate() {
 
   if (!selectedHTS) return alert("Select HTS first");
@@ -351,6 +337,7 @@ function calculate() {
 
   let cost = +document.getElementById("cost").value || 0;
   let units = +document.getElementById("units").value || 1;
+  if (units <= 0) return alert("Units must be > 0");
 
   let freight = +document.getElementById("freight").value || 0;
   let brokerage = +document.getElementById("brokerage").value || 0;
@@ -395,6 +382,20 @@ function calculate() {
     Duty: $${duty.toFixed(2)}<br>
     Logistics/unit: $${logistics.toFixed(2)}
   `;
+}
+
+// ===== MODAL =====
+function open232() {
+  document.getElementById("modal232").style.display = "block";
+}
+
+function close232() {
+  document.getElementById("modal232").style.display = "none";
+}
+
+window.onclick = function(e) {
+  let modal = document.getElementById("modal232");
+  if (e.target === modal) modal.style.display = "none";
 }
 
 </script>
