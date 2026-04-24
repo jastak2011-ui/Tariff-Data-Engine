@@ -192,9 +192,7 @@ ul li {
 <div id="modal122" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);">
   <div style="background:#161b22; margin:15% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
     <h3>Section 122 Explained</h3>
-    <p>Section 122 allows a temporary tariff (up to 15%) for balance-of-payments issues.</p>
-    <p>A 10% global tariff was imposed Feb 24, 2026 through July 24, 2026.</p>
-    <p>Goods under Section 232 are excluded.</p>
+    <p>Temporary 10% global tariff (Feb–July 2026). Excludes Section 232 goods.</p>
     <button onclick="close122()">Close</button>
   </div>
 </div>
@@ -319,6 +317,11 @@ function calculate(){
 
   let totalDuty = goodsValue * (totalRate/100);
 
+  let dGenUnit = (goodsValue*(gen/100))/unitsVal;
+  let d301Unit = (goodsValue*(s301/100))/unitsVal;
+  let d232Unit = (goodsValue*(s232/100))/unitsVal;
+  let d122Unit = (goodsValue*(s122/100))/unitsVal;
+
   let dutyPerUnit = totalDuty / unitsVal;
   let logisticsPerUnit = (freightVal+brokerageVal+otherVal)/unitsVal;
 
@@ -335,9 +338,15 @@ function calculate(){
 
     <hr>
 
-    Total Tariff Rate: ${totalRate}%<br>
-    Section 232: ${s232}%<br>
-    Section 122: ${s122}% ${s232>0?"(excluded)":""}
+    <strong>Duty per Unit</strong><br>
+    General: $${dGenUnit.toFixed(2)}<br>
+    301: $${d301Unit.toFixed(2)}<br>
+    232: $${d232Unit.toFixed(2)}<br>
+    122: $${d122Unit.toFixed(2)}<br>
+
+    <hr>
+
+    <strong>Total Duty per Unit:</strong> $${dutyPerUnit.toFixed(2)}
   `;
 }
 
