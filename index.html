@@ -5,107 +5,22 @@
 <title>HTS Tariff Engine</title>
 
 <style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont, Arial;
-  background: #0d1117;
-  color: #e6edf3;
-  margin: 0;
-}
-
-header {
-  background: #161b22;
-  padding: 18px;
-  font-size: 22px;
-  text-align: center;
-  border-bottom: 1px solid #30363d;
-}
-
-.container {
-  max-width: 520px;
-  margin: auto;
-  padding: 12px;
-}
-
-.section {
-  background: #161b22;
-  border-radius: 14px;
-  padding: 14px;
-  margin-top: 14px;
-}
-
-h3 {
-  font-size: 14px;
-  color: #8b949e;
-}
-
-input, select {
-  width: 100%;
-  padding: 11px;
-  margin: 6px 0;
-  border-radius: 10px;
-  border: 1px solid #30363d;
-  background: #0d1117;
-  color: white;
-  font-size: 16px;
-  box-sizing: border-box;
-}
-
-.row {
-  display: flex;
-  gap: 10px;
-}
-
-.row input, .row select {
-  flex: 1;
-}
-
-button {
-  padding: 14px;
-  border-radius: 12px;
-  border: none;
-  background: #2ea043;
-  color: white;
-  font-size: 16px;
-  width: 100%;
-  margin-top: 12px;
-}
-
-.result {
-  margin-top: 16px;
-  background: #161b22;
-  border-radius: 14px;
-  padding: 15px;
-}
-
-.big {
-  font-size: 26px;
-  font-weight: bold;
-  color: #3fb950;
-}
-
-.sub {
-  color: #8b949e;
-  font-size: 13px;
-}
-
-.item {
-  padding: 10px;
-  border-bottom: 1px solid #30363d;
-  cursor: pointer;
-}
-
-.item:hover {
-  background: #21262d;
-}
-
-.helper {
-  font-size: 12px;
-  color: #8b949e;
-}
-
-ul li {
-  margin-bottom: 8px;
-}
+body {font-family:-apple-system,BlinkMacSystemFont,Arial;background:#0d1117;color:#e6edf3;margin:0;}
+header {background:#161b22;padding:18px;font-size:22px;text-align:center;border-bottom:1px solid #30363d;}
+.container {max-width:520px;margin:auto;padding:12px;}
+.section {background:#161b22;border-radius:14px;padding:14px;margin-top:14px;}
+h3 {font-size:14px;color:#8b949e;}
+input,select {width:100%;padding:11px;margin:6px 0;border-radius:10px;border:1px solid #30363d;background:#0d1117;color:white;font-size:16px;box-sizing:border-box;}
+.row {display:flex;gap:10px;}
+.row input,.row select {flex:1;}
+button {padding:14px;border-radius:12px;border:none;background:#2ea043;color:white;font-size:16px;width:100%;margin-top:12px;}
+.result {margin-top:16px;background:#161b22;border-radius:14px;padding:15px;}
+.big {font-size:26px;font-weight:bold;color:#3fb950;}
+.sub {color:#8b949e;font-size:13px;}
+.item {padding:10px;border-bottom:1px solid #30363d;cursor:pointer;}
+.item:hover {background:#21262d;}
+.helper {font-size:12px;color:#8b949e;}
+ul li {margin-bottom:8px;}
 </style>
 </head>
 
@@ -116,56 +31,56 @@ ul li {
 <div class="container">
 
 <div class="section">
-  <h3>HTS Lookup</h3>
-  <input id="search" placeholder="Enter HTS or description" oninput="cleanInput()">
-  <button onclick="searchHTS()">Search</button>
-  <div id="results"></div>
+<h3>HTS Lookup</h3>
+<input id="search" placeholder="Enter HTS or description" oninput="cleanInput()">
+<button onclick="searchHTS()">Search</button>
+<div id="results"></div>
 </div>
 
 <div class="section">
-  <h3>Cost Inputs</h3>
-  <div class="row">
-    <input id="cost" type="number" placeholder="Unit Cost">
-    <input id="units" type="number" placeholder="Units">
-  </div>
-  <div class="row">
-    <input id="freight" type="number" placeholder="Freight">
-    <input id="brokerage" type="number" placeholder="Brokerage">
-  </div>
-  <input id="other" type="number" placeholder="Other Costs">
+<h3>Cost Inputs</h3>
+<div class="row">
+<input id="cost" type="number" placeholder="Unit Cost">
+<input id="units" type="number" placeholder="Units">
+</div>
+<div class="row">
+<input id="freight" type="number" placeholder="Freight">
+<input id="brokerage" type="number" placeholder="Brokerage">
+</div>
+<input id="other" type="number" placeholder="Other Costs">
 </div>
 
 <div class="section">
-  <h3>Origin</h3>
-  <select id="country">
-    <option value="" disabled selected>Select Country *</option>
-    <option value="CN">China</option>
-    <option value="VN">Vietnam</option>
-    <option value="IN">India</option>
-    <option value="MX">Mexico</option>
-  </select>
+<h3>Origin</h3>
+<select id="country">
+<option value="" disabled selected>Select Country *</option>
+<option value="CN">China</option>
+<option value="VN">Vietnam</option>
+<option value="IN">India</option>
+<option value="MX">Mexico</option>
+</select>
 </div>
 
 <div class="section">
-  <h3 onclick="open232()" style="cursor:pointer;">Section 232 ⓘ</h3>
-  <input id="metalPercent" type="number" placeholder="% Metal Content">
-  <div class="row">
-    <select id="productType">
-      <option value="">Type</option>
-      <option value="raw">Raw</option>
-      <option value="derivative">Derivative</option>
-      <option value="industrial">Industrial</option>
-    </select>
-    <select id="usMaterial">
-      <option value="no">Foreign</option>
-      <option value="yes">US Material</option>
-    </select>
-  </div>
+<h3 onclick="open232()" style="cursor:pointer;">Section 232 ⓘ</h3>
+<input id="metalPercent" type="number" placeholder="% Metal Content">
+<div class="row">
+<select id="productType">
+<option value="">Type</option>
+<option value="raw">Raw</option>
+<option value="derivative">Derivative</option>
+<option value="industrial">Industrial</option>
+</select>
+<select id="usMaterial">
+<option value="no">Foreign</option>
+<option value="yes">US Material</option>
+</select>
+</div>
 </div>
 
 <div class="section">
-  <h3 onclick="open122()" style="cursor:pointer;">Section 122 ⓘ</h3>
-  <div class="helper">10% global tariff unless Section 232 applies</div>
+<h3 onclick="open122()" style="cursor:pointer;">Section 122 ⓘ</h3>
+<div class="helper">10% global tariff unless Section 232 applies</div>
 </div>
 
 <button onclick="calculate()">Calculate</button>
@@ -175,26 +90,26 @@ ul li {
 </div>
 
 <!-- MODALS -->
-<div id="modal232" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);">
-  <div style="background:#161b22; margin:15% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
-    <h3>Section 232</h3>
-    <ul>
-      <li>50% – Raw metals</li>
-      <li>25% – Derivative products</li>
-      <li>15% – Industrial equipment</li>
-      <li>10% – US metal</li>
-      <li>0% – ≤15% metal</li>
-    </ul>
-    <button onclick="close232()">Close</button>
-  </div>
+<div id="modal232" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);">
+<div style="background:#161b22;margin:15% auto;padding:20px;width:90%;max-width:420px;border-radius:12px;">
+<h3>Section 232</h3>
+<ul>
+<li>50% – Raw metals</li>
+<li>25% – Derivative products</li>
+<li>15% – Industrial equipment</li>
+<li>10% – US metal</li>
+<li>0% – ≤15% metal</li>
+</ul>
+<button onclick="close232()">Close</button>
+</div>
 </div>
 
-<div id="modal122" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);">
-  <div style="background:#161b22; margin:15% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
-    <h3>Section 122 Explained</h3>
-    <p>Temporary 10% global tariff (Feb–July 2026). Excludes Section 232 goods.</p>
-    <button onclick="close122()">Close</button>
-  </div>
+<div id="modal122" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);">
+<div style="background:#161b22;margin:15% auto;padding:20px;width:90%;max-width:420px;border-radius:12px;">
+<h3>Section 122 Explained</h3>
+<p>Temporary 10% global tariff (Feb–July 2026). Excludes Section 232 goods.</p>
+<button onclick="close122()">Close</button>
+</div>
 </div>
 
 <script>
@@ -202,152 +117,147 @@ ul li {
 let HTS_DATA=[],SECTION301_LIST=[],selectedHTS=null;
 
 function cleanInput(){
-  document.getElementById("search").value =
-  document.getElementById("search").value.replace(/[^a-zA-Z0-9]/g,'');
+document.getElementById("search").value=
+document.getElementById("search").value.replace(/[^a-zA-Z0-9]/g,'');
 }
 
-function normalizeHTS(x){
-  return (x||"").replace(/[^0-9]/g,'').substring(0,8);
-}
+function normalizeHTS(x){return (x||"").replace(/[^0-9]/g,'').substring(0,8);}
 
 function parseCSV(t){
-  const r=[];let row=[],c='',q=false;
-  for(let ch of t){
-    if(ch=='"')q=!q;
-    else if(ch==','&&!q){row.push(c);c='';}
-    else if((ch=='\n'||ch=='\r')&&!q){
-      if(c||row.length){row.push(c);r.push(row);row=[];c='';}
-    } else c+=ch;
-  }
-  if(c||row.length){row.push(c);r.push(row);}
-  return r;
+const r=[];let row=[],c='',q=false;
+for(let ch of t){
+if(ch=='"')q=!q;
+else if(ch==','&&!q){row.push(c);c='';}
+else if((ch=='\n'||ch=='\r')&&!q){
+if(c||row.length){row.push(c);r.push(row);row=[];c='';}}
+else c+=ch;}
+if(c||row.length){row.push(c);r.push(row);}
+return r;
 }
 
 async function loadData(){
-  let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
-  let s=await fetch("Listed Commodities.csv").then(r=>r.text());
-  parseHTS(h);parse301(s);
+let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
+let s=await fetch("Listed Commodities.csv").then(r=>r.text());
+parseHTS(h);parse301(s);
 }
 window.onload=loadData;
 
 function parseHTS(t){
-  let r=parseCSV(t);
-  let h=r[0].map(x=>x.toLowerCase());
+let r=parseCSV(t);
+let h=r[0].map(x=>x.toLowerCase());
+let hi=h.findIndex(x=>x.includes("hts"));
+let di=h.findIndex(x=>x.includes("description"));
+let du=h.findIndex(x=>x.includes("mfn")||x.includes("general"));
 
-  let hi=h.findIndex(x=>x.includes("hts"));
-  let di=h.findIndex(x=>x.includes("description"));
-  let du=h.findIndex(x=>x.includes("mfn")||x.includes("general"));
-
-  HTS_DATA=r.slice(1).map(c=>({
-    hts:normalizeHTS(c[hi]),
-    originalHTS:c[hi],
-    description:c[di]||"",
-    duty:parseFloat((c[du]||"0").replace("%",""))||0
-  }));
+HTS_DATA=r.slice(1).map(c=>({
+hts:normalizeHTS(c[hi]),
+originalHTS:c[hi],
+description:c[di]||"",
+duty:parseFloat((c[du]||"0").replace("%",""))||0
+}));
 }
 
 function parse301(t){
-  let r=parseCSV(t);
-  SECTION301_LIST=r.slice(1).map(c=>({
-    hts:normalizeHTS(c[0]),
-    rate:parseFloat((c[2]||"0").replace("%",""))||0
-  }));
+let r=parseCSV(t);
+SECTION301_LIST=r.slice(1).map(c=>({
+hts:normalizeHTS(c[0]),
+rate:parseFloat((c[2]||"0").replace("%",""))||0
+}));
 }
 
 function get301Rate(h){
-  let c=normalizeHTS(h);
-  for(let i of SECTION301_LIST){
-    if(c.substring(0,6)==i.hts.substring(0,6)) return i.rate;
-  }
-  return 0;
+let c=normalizeHTS(h);
+for(let i of SECTION301_LIST){
+if(c.substring(0,6)==i.hts.substring(0,6)) return i.rate;}
+return 0;
 }
 
 function searchHTS(){
-  let raw=document.getElementById("search").value.toLowerCase();
-  let q=raw.replace(/[^0-9]/g,'').substring(0,8);
+let raw=document.getElementById("search").value.toLowerCase();
+let q=raw.replace(/[^0-9]/g,'').substring(0,8);
 
-  let m=HTS_DATA.filter(i=>
-    (q && i.hts.startsWith(q)) ||
-    i.description.toLowerCase().includes(raw)
-  ).slice(0,10);
+let m=HTS_DATA.filter(i=>
+(q && i.hts.startsWith(q)) ||
+i.description.toLowerCase().includes(raw)
+).slice(0,10);
 
-  let div=document.getElementById("results");
-  div.innerHTML="";
+let div=document.getElementById("results");
+div.innerHTML="";
 
-  m.forEach(i=>{
-    let d=document.createElement("div");
-    d.className="item";
-    d.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
-    d.onclick=()=>{selectedHTS=i;div.innerHTML=`Selected: ${i.originalHTS}`};
-    div.appendChild(d);
-  });
+m.forEach(i=>{
+let d=document.createElement("div");
+d.className="item";
+d.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
+d.onclick=()=>{selectedHTS=i;div.innerHTML=`Selected: ${i.originalHTS}`};
+div.appendChild(d);
+});
 }
 
 function calculate(){
 
-  if(!selectedHTS) return alert("Select HTS");
-  let ctry=document.getElementById("country").value;
-  if(!ctry) return alert("Select Country");
+if(!selectedHTS) return alert("Select HTS");
+let ctry=document.getElementById("country").value;
+if(!ctry) return alert("Select Country");
 
-  let costVal = +document.getElementById("cost").value || 0;
-  let unitsVal = +document.getElementById("units").value || 1;
+let costVal=+document.getElementById("cost").value||0;
+let unitsVal=+document.getElementById("units").value||1;
 
-  let freightVal = +document.getElementById("freight").value || 0;
-  let brokerageVal = +document.getElementById("brokerage").value || 0;
-  let otherVal = +document.getElementById("other").value || 0;
+let freightVal=+document.getElementById("freight").value||0;
+let brokerageVal=+document.getElementById("brokerage").value||0;
+let otherVal=+document.getElementById("other").value||0;
 
-  let metal = +document.getElementById("metalPercent").value || 0;
-  let ptype = document.getElementById("productType").value;
-  let us = document.getElementById("usMaterial").value;
+let metal=+document.getElementById("metalPercent").value||0;
+let ptype=document.getElementById("productType").value;
+let us=document.getElementById("usMaterial").value;
 
-  let gen = selectedHTS.duty;
-  let s301 = ctry==="CN"?get301Rate(selectedHTS.hts):0;
+let gen=selectedHTS.duty;
+let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
 
-  let s232=0;
-  if(metal<=15)s232=0;
-  else if(us==="yes")s232=10;
-  else if(ptype==="industrial")s232=15;
-  else if(ptype==="derivative")s232=25;
-  else if(ptype==="raw")s232=50;
+let s232=0;
+if(metal<=15)s232=0;
+else if(us==="yes")s232=10;
+else if(ptype==="industrial")s232=15;
+else if(ptype==="derivative")s232=25;
+else if(ptype==="raw")s232=50;
 
-  let s122 = s232>0 ? 0 : 10;
+let s122=s232>0?0:10;
 
-  let goodsValue = costVal * unitsVal;
-  let totalRate = gen + s301 + s232 + s122;
+let goodsValue=costVal*unitsVal;
+let totalRate=gen+s301+s232+s122;
 
-  let totalDuty = goodsValue * (totalRate/100);
+let totalDuty=goodsValue*(totalRate/100);
 
-  let dGenUnit = (goodsValue*(gen/100))/unitsVal;
-  let d301Unit = (goodsValue*(s301/100))/unitsVal;
-  let d232Unit = (goodsValue*(s232/100))/unitsVal;
-  let d122Unit = (goodsValue*(s122/100))/unitsVal;
+let dGenUnit=(goodsValue*(gen/100))/unitsVal;
+let d301Unit=(goodsValue*(s301/100))/unitsVal;
+let d232Unit=(goodsValue*(s232/100))/unitsVal;
+let d122Unit=(goodsValue*(s122/100))/unitsVal;
 
-  let dutyPerUnit = totalDuty / unitsVal;
-  let logisticsPerUnit = (freightVal+brokerageVal+otherVal)/unitsVal;
+let dutyPerUnit=totalDuty/unitsVal;
+let logisticsPerUnit=(freightVal+brokerageVal+otherVal)/unitsVal;
 
-  let landed = costVal + dutyPerUnit + logisticsPerUnit;
+let landed=costVal+dutyPerUnit+logisticsPerUnit;
 
-  document.getElementById("output").innerHTML = `
-    <div class="big">$${landed.toFixed(2)}</div>
-    <div class="sub">Per Unit Landed Cost</div>
+document.getElementById("output").innerHTML=`
+<div class="big">$${landed.toFixed(2)}</div>
+<div class="sub">Per Unit Landed Cost</div>
 
-    <hr>
+<hr>
 
-    <strong>Goods Value:</strong> $${goodsValue.toFixed(2)}<br>
-    <strong>Total Duty Impact:</strong> $${totalDuty.toFixed(2)}
+<strong>Goods Value:</strong> $${goodsValue.toFixed(2)}<br>
+<strong>Total Duty Impact:</strong> $${totalDuty.toFixed(2)}
 
-    <hr>
+<hr>
 
-    <strong>Duty per Unit</strong><br>
-    General: $${dGenUnit.toFixed(2)}<br>
-    301: $${d301Unit.toFixed(2)}<br>
-    232: $${d232Unit.toFixed(2)}<br>
-    122: $${d122Unit.toFixed(2)}<br>
+<strong>Duty per Unit</strong><br>
+General Rate of Duty (${gen}%): $${dGenUnit.toFixed(2)}<br>
+Section 301 (${s301}%): $${d301Unit.toFixed(2)}<br>
+Section 232 (${s232}%): $${d232Unit.toFixed(2)}<br>
+Section 122 (${s122}% ${s232>0?"excluded":""}): $${d122Unit.toFixed(2)}<br>
 
-    <hr>
+<hr>
 
-    <strong>Total Duty per Unit:</strong> $${dutyPerUnit.toFixed(2)}
-  `;
+<strong>Total Duty per Unit:</strong> $${dutyPerUnit.toFixed(2)}
+`;
 }
 
 function open232(){modal232.style.display="block";}
@@ -356,8 +266,8 @@ function open122(){modal122.style.display="block";}
 function close122(){modal122.style.display="none";}
 
 window.onclick=e=>{
-  if(e.target===modal232)modal232.style.display="none";
-  if(e.target===modal122)modal122.style.display="none";
+if(e.target===modal232)modal232.style.display="none";
+if(e.target===modal122)modal122.style.display="none";
 };
 
 </script>
