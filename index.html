@@ -204,7 +204,7 @@ ul li {
     </p>
 
     <p>
-    Following the Supreme Court's February 2026 ruling in <em>Learning Resources, Inc. v. Trump</em>, the Trump Administration invoked Section 122 to impose a <strong>10% global tariff</strong> effective February 24, 2026 through July 24, 2026.
+    Following the Supreme Court's February 2026 ruling in <em>Learning Resources, Inc. v. Trump</em>, the Administration invoked Section 122 to impose a <strong>10% global tariff</strong> effective February 24, 2026 through July 24, 2026.
     </p>
 
     <p>
@@ -217,32 +217,48 @@ ul li {
 
 <script>
 
-let HTS_DATA=[],SECTION301_LIST=[],selectedHTS=null;
+let HTS_DATA = [];
+let SECTION301_LIST = [];
+let selectedHTS = null;
 
-function cleanInput(){search.value=search.value.replace(/[^a-zA-Z0-9]/g,'');}
-function normalizeHTS(x){return (x||"").replace(/[^0-9]/g,'').substring(0,8);}
+// INPUT CLEAN
+function cleanInput() {
+  document.getElementById("search").value =
+    document.getElementById("search").value.replace(/[^a-zA-Z0-9]/g,'');
+}
 
+function normalizeHTS(x){
+  return (x||"").replace(/[^0-9]/g,'').substring(0,8);
+}
+
+// CSV PARSER
 function parseCSV(t){
-  const r=[];let row=[],c='',q=false;
+  const r=[]; let row=[],c='',q=false;
   for(let ch of t){
     if(ch=='"')q=!q;
     else if(ch==','&&!q){row.push(c);c='';}
-    else if((ch=='\n'||ch=='\r')&&!q){if(c||row.length){row.push(c);r.push(row);row=[];c='';}}
-    else c+=ch;
+    else if((ch=='\n'||ch=='\r')&&!q){
+      if(c||row.length){row.push(c);r.push(row);row=[];c='';}
+    } else c+=ch;
   }
   if(c||row.length){row.push(c);r.push(row);}
   return r;
 }
 
+// LOAD DATA
 async function loadData(){
-  let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
-  let s=await fetch("Listed Commodities.csv").then(r=>r.text());
-  parseHTS(h);parse301(s);
+  let h = await fetch("tariff_database_2026.csv").then(r=>r.text());
+  let s = await fetch("Listed Commodities.csv").then(r=>r.text());
+  parseHTS(h);
+  parse301(s);
 }
-window.onload=loadData;
+window.onload = loadData;
 
+// PARSE
 function parseHTS(t){
-  let r=parseCSV(t),h=r[0].map(x=>x.toLowerCase());
+  let r=parseCSV(t);
+  let h=r[0].map(x=>x.toLowerCase());
+
   let hi=h.findIndex(x=>x.includes("hts"));
   let di=h.findIndex(x=>x.includes("description"));
   let du=h.findIndex(x=>x.includes("mfn")||x.includes("general"));
@@ -263,42 +279,60 @@ function parse301(t){
   }));
 }
 
-function get301Rate(h){
-  let c=normalizeHTS(h);
-  for(let i of SECTION301_LIST)
-    if(c.substring(0,6)==i.hts.substring(0,6)) return i.rate;
-  return 0;
-}
-
+// SEARCH
 function searchHTS(){
-  let raw=search.value.toLowerCase();
+  let raw=document.getElementById("search").value.toLowerCase();
   let q=raw.replace(/[^0-9]/g,'').substring(0,8);
 
-  let m=HTS_DATA.filter(i=>
-    (q&&i.hts.startsWith(q))||i.description.toLowerCase().includes(raw)
+  let matches=HTS_DATA.filter(i =>
+    (q && i.hts.startsWith(q)) ||
+    i.description.toLowerCase().includes(raw)
   ).slice(0,10);
 
-  results.innerHTML="";
-  m.forEach(i=>{
-    let d=document.createElement("div");
-    d.className="item";
-    d.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
-    d.onclick=()=>{selectedHTS=i;results.innerHTML=`Selected: ${i.originalHTS}`};
-    results.appendChild(d);
+  let div=document.getElementById("results");
+  div.innerHTML="";
+
+  matches.forEach(i=>{
+    let el=document.createElement("div");
+    el.className="item";
+    el.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
+    el.onclick=()=>{
+      selectedHTS=i;
+      div.innerHTML=`Selected: ${i.originalHTS}`;
+    };
+    div.appendChild(el);
   });
 }
 
+// 301
+function get301Rate(h){
+  let c=normalizeHTS(h);
+  for(let i of SECTION301_LIST){
+    if(c.substring(0,6)==i.hts.substring(0,6)) return i.rate;
+  }
+  return 0;
+}
+
+// CALCULATE (FIXED)
 function calculate(){
+
   if(!selectedHTS) return alert("Select HTS");
-  let ctry=country.value;if(!ctry) return alert("Select Country");
+  let ctry=document.getElementById("country").value;
+  if(!ctry) return alert("Select Country");
 
-  let cost=+cost.value||0,units=+units.value||1;
-  let freight=+freight.value||0,brokerage=+brokerage.value||0,other=+other.value||0;
+  let costVal = +document.getElementById("cost").value || 0;
+  let unitsVal = +document.getElementById("units").value || 1;
 
-  let metal=+metalPercent.value||0,ptype=productType.value,us=usMaterial.value;
+  let freightVal = +document.getElementById("freight").value || 0;
+  let brokerageVal = +document.getElementById("brokerage").value || 0;
+  let otherVal = +document.getElementById("other").value || 0;
 
-  let gen=selectedHTS.duty;
-  let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
+  let metal = +document.getElementById("metalPercent").value || 0;
+  let ptype = document.getElementById("productType").value;
+  let us = document.getElementById("usMaterial").value;
+
+  let gen = selectedHTS.duty;
+  let s301 = ctry==="CN"?get301Rate(selectedHTS.hts):0;
 
   let s232=0;
   if(metal<=15)s232=0;
@@ -307,48 +341,50 @@ function calculate(){
   else if(ptype==="derivative")s232=25;
   else if(ptype==="raw")s232=50;
 
-  let s122=s232>0?0:10;
+  let s122 = s232>0 ? 0 : 10;
 
-  let dGen=cost*(gen/100),
-      d301=cost*(s301/100),
-      d232=cost*(s232/100),
-      d122=cost*(s122/100);
+  let dGen = costVal*(gen/100);
+  let d301 = costVal*(s301/100);
+  let d232 = costVal*(s232/100);
+  let d122 = costVal*(s122/100);
 
-  let totalDuty=dGen+d301+d232+d122;
-  let landed=cost+totalDuty+(freight+brokerage+other)/units;
+  let totalDuty = dGen+d301+d232+d122;
+  let landed = costVal + totalDuty + (freightVal+brokerageVal+otherVal)/unitsVal;
 
-  output.innerHTML=`
-  <div class="big">$${landed.toFixed(2)}</div>
-  <div class="sub">Per Unit Landed Cost</div>
+  document.getElementById("output").innerHTML = `
+    <div class="big">$${landed.toFixed(2)}</div>
+    <div class="sub">Per Unit Landed Cost</div>
 
-  <hr>
+    <hr>
 
-  General: ${gen}%<br>
-  301: ${s301}%<br>
-  232: ${s232}%<br>
-  122: ${s122}% ${s232>0?"(excluded)":""}<br>
+    General: ${gen}%<br>
+    301: ${s301}%<br>
+    232: ${s232}%<br>
+    122: ${s122}% ${s232>0?"(excluded)":""}<br>
 
-  <hr>
+    <hr>
 
-  General: $${dGen.toFixed(2)}<br>
-  301: $${d301.toFixed(2)}<br>
-  232: $${d232.toFixed(2)}<br>
-  122: $${d122.toFixed(2)}<br>
+    General: $${dGen.toFixed(2)}<br>
+    301: $${d301.toFixed(2)}<br>
+    232: $${d232.toFixed(2)}<br>
+    122: $${d122.toFixed(2)}<br>
 
-  <hr>
-  Total Duty: $${totalDuty.toFixed(2)}
+    <hr>
+    Total Duty: $${totalDuty.toFixed(2)}
   `;
 }
 
-function open232(){modal232.style.display="block";}
-function close232(){modal232.style.display="none";}
-function open122(){modal122.style.display="block";}
-function close122(){modal122.style.display="none";}
+// MODALS
+function open232(){document.getElementById("modal232").style.display="block";}
+function close232(){document.getElementById("modal232").style.display="none";}
+function open122(){document.getElementById("modal122").style.display="block";}
+function close122(){document.getElementById("modal122").style.display="none";}
 
 window.onclick=e=>{
   if(e.target===modal232)modal232.style.display="none";
   if(e.target===modal122)modal122.style.display="none";
 };
+
 </script>
 
 </body>
