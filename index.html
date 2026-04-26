@@ -41,7 +41,6 @@ button {
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('hts')">HTS Lookup</div>
-  <div class="tab" onclick="switchTab('products')">Current Products</div>
 </div>
 
 <div class="container">
@@ -141,7 +140,8 @@ function formatUnits(input){
 async function loadData(){
   let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
   let s=await fetch("Listed Commodities.csv").then(r=>r.text());
-  parseHTS(h); parse301(s);
+  parseHTS(h);
+  parse301(s);
 }
 
 window.onload = loadData;
@@ -158,19 +158,25 @@ if(c||row.length){row.push(c);r.push(row);}
 return r;
 }
 
+/* 🔥 RESTORED WORKING PARSER */
 function parseHTS(t){
 let r=parseCSV(t);
 let h=r[0].map(x=>x.toLowerCase());
+
 let hi=h.findIndex(x=>x.includes("hts"));
 let di=h.findIndex(x=>x.includes("description"));
+
+// THIS IS THE KEY FIX (original working behavior)
 let du=h.findIndex(x=>x.includes("general"));
 
 HTS_DATA=r.slice(1).map(c=>({
-hts:(c[hi]||"").replace(/\D/g,'').substring(0,8),
-originalHTS:c[hi],
-description:c[di],
-duty:parseFloat((c[du]||"0").replace("%",""))||0
+  hts:(c[hi]||"").replace(/\D/g,'').substring(0,8),
+  originalHTS:c[hi],
+  description:c[di],
+  duty:parseFloat((c[du]||"0").replace("%",""))||0
 }));
+
+console.log("Sample HTS row:", HTS_DATA[0]);
 }
 
 function parse301(t){
@@ -212,6 +218,8 @@ div.appendChild(el);
 
 function calculate(){
 
+if(!selectedHTS) return alert("Select HTS");
+
 let costVal=+document.getElementById("cost").value||0;
 let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
 let ctry=document.getElementById("country").value;
@@ -223,7 +231,7 @@ let us=document.getElementById("usMaterial").value;
 let gen=selectedHTS.duty;
 let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
 
-// Section 232 logic
+// Section 232
 let s232=0;
 let is232Applicable = metal > 0 || ptype || us==="yes";
 
@@ -241,7 +249,6 @@ let goods=costVal*unitsVal;
 let totalRate=gen+s301+s232+s122;
 let duty=goods*(totalRate/100);
 
-// Precision fix
 let dGenUnit=(goods*(gen/100))/unitsVal;
 
 let section232Text = is232Applicable
