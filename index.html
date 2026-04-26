@@ -38,7 +38,6 @@ button {
 
 .result {margin-top:16px;background:#161b22;border-radius:14px;padding:15px;}
 .big {font-size:26px;font-weight:bold;color:#3fb950;}
-
 .item {padding:10px;border-bottom:1px solid #30363d;cursor:pointer;}
 .item:hover {background:#21262d;}
 </style>
@@ -141,7 +140,6 @@ window.onload = async function(){
 function switchTab(id){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-
   document.querySelector(`[onclick="switchTab('${id}')"]`).classList.add("active");
   document.getElementById(id).classList.add("active");
 }
@@ -149,17 +147,14 @@ function switchTab(id){
 // FORMAT UNITS
 function formatUnits(input){
   let val = input.value.replace(/,/g,'').replace(/\D/g,'');
-  if(val){
-    input.value = parseInt(val).toLocaleString();
-  }
+  if(val){ input.value = parseInt(val).toLocaleString(); }
 }
 
 // LOAD DATA
 async function loadData(){
   let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
   let s=await fetch("Listed Commodities.csv").then(r=>r.text());
-  parseHTS(h);
-  parse301(s);
+  parseHTS(h); parse301(s);
 }
 
 // LOAD PRODUCTS
@@ -185,11 +180,9 @@ async function loadProducts(){
     country:normalizeCountry(r[cooIndex]),
     hts:r[htsIndex]
   }));
-
-  console.log("Products loaded:", PRODUCT_DATA.length);
 }
 
-// COUNTRY FIX
+// HELPERS
 function normalizeCountry(c){
   if(!c) return "";
   c=c.toLowerCase();
@@ -200,7 +193,6 @@ function normalizeCountry(c){
   return c.toUpperCase();
 }
 
-// CSV PARSER
 function parseCSV(t){
 const r=[];let row=[],c='',q=false;
 for(let ch of t){
@@ -217,7 +209,6 @@ return r;
 function parseHTS(t){
 let r=parseCSV(t);
 let h=r[0].map(x=>x.toLowerCase());
-
 let hi=h.findIndex(x=>x.includes("hts"));
 let di=h.findIndex(x=>x.includes("description"));
 let du=h.findIndex(x=>x.includes("general")||x.includes("mfn"));
@@ -230,7 +221,7 @@ duty:parseFloat((c[du]||"0").replace("%",""))||0
 }));
 }
 
-// 301 PARSE
+// 301
 function parse301(t){
 let r=parseCSV(t);
 SECTION301_LIST=r.slice(1).map(c=>({
@@ -245,7 +236,7 @@ if(h.startsWith(i.hts.substring(0,6))) return i.rate;}
 return 0;
 }
 
-// HTS SEARCH
+// SEARCH HTS
 function searchHTS(){
 let q=document.getElementById("search").value.toLowerCase();
 
@@ -292,51 +283,74 @@ div.appendChild(el);
 
 // SELECT PRODUCT
 function selectProduct(p){
-
 let norm=p.hts.replace(/\D/g,'').substring(0,8);
 let match=HTS_DATA.find(x=>x.hts===norm);
-
 if(!match)return alert("HTS not found");
 
-let gen=match.duty;
-let s301=p.country==="CN"?get301Rate(match.hts):0;
+selectedHTS=match;
 
-let goods=p.cost*p.units;
-let totalRate=gen+s301+10;
-let duty=goods*(totalRate/100);
+let resultHTML = buildOutput(p.cost, p.units, p.country);
+document.getElementById("productOutput").innerHTML = resultHTML;
+}
 
-document.getElementById("productOutput").innerHTML=`
-<div class="big">$${(p.cost + duty/p.units).toFixed(2)}</div>
-<div>Per Unit Cost</div>
+// MAIN CALC ENGINE
+function buildOutput(costVal, unitsVal, ctry){
+
+let gen=selectedHTS.duty;
+let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
+let s232=0;
+let s122=s232>0?0:10;
+
+let goodsValue=costVal*unitsVal;
+let totalRate=gen+s301+s232+s122;
+let totalDuty=goodsValue*(totalRate/100);
+
+let dGenUnit=(goodsValue*(gen/100))/unitsVal;
+let d301Unit=(goodsValue*(s301/100))/unitsVal;
+let d232Unit=0;
+let d122Unit=(goodsValue*(s122/100))/unitsVal;
+
+let dutyPerUnit=totalDuty/unitsVal;
+let landed=costVal+dutyPerUnit;
+
+let section301HTML="";
+if(ctry==="CN"){
+section301HTML=`Section 301 (${s301}%): $${d301Unit.toFixed(2)}<br>`;
+}
+
+return `
+<div class="big">$${landed.toFixed(2)}</div>
+<div>Per Unit Landed Cost</div>
+
 <hr>
-Goods Value: $${goods.toLocaleString()}<br>
-Total Duty: $${duty.toLocaleString()}
+
+<strong>Goods Value:</strong> $${goodsValue.toLocaleString()}<br>
+<strong>Total Duty Impact:</strong> $${totalDuty.toLocaleString()}
+
+<hr>
+
+<strong>Duty per Unit</strong><br>
+General Rate of Duty (${gen}%): $${dGenUnit.toFixed(2)}<br>
+${section301HTML}
+Section 232 (${s232}%): $${d232Unit.toFixed(2)}<br>
+Section 122 (${s122}%): $${d122Unit.toFixed(2)}<br>
+
+<hr>
+
+<strong>Total Duty per Unit:</strong> $${dutyPerUnit.toFixed(2)}
 `;
 }
 
-// CALCULATE (MAIN ENGINE)
+// CALCULATE BUTTON
 function calculate(){
-
 if(!selectedHTS) return alert("Select HTS");
 
 let costVal=+document.getElementById("cost").value||0;
 let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
 let ctry=document.getElementById("country").value;
 
-let gen=selectedHTS.duty;
-let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
-
-let goods=costVal*unitsVal;
-let totalRate=gen+s301+10;
-let duty=goods*(totalRate/100);
-
-document.getElementById("output").innerHTML=`
-<div class="big">$${(costVal + duty/unitsVal).toFixed(2)}</div>
-<div>Per Unit Cost</div>
-<hr>
-Goods Value: $${goods.toLocaleString()}<br>
-Total Duty: $${duty.toLocaleString()}
-`;
+document.getElementById("output").innerHTML =
+buildOutput(costVal, unitsVal, ctry);
 }
 
 </script>
