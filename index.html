@@ -7,27 +7,26 @@
 <style>
 body {font-family:-apple-system,BlinkMacSystemFont,Arial;background:#0d1117;color:#e6edf3;margin:0;}
 header {background:#161b22;padding:18px;font-size:22px;text-align:center;border-bottom:1px solid #30363d;}
-.tabs {display:flex;background:#161b22;border-bottom:1px solid #30363d;}
-.tab {flex:1;padding:14px;text-align:center;cursor:pointer;color:#8b949e;}
-.tab.active {color:white;border-bottom:2px solid #2ea043;}
 .container {max-width:520px;margin:auto;padding:12px;}
-.tab-content {display:none;}
-.tab-content.active {display:block;}
 .section {background:#161b22;border-radius:14px;padding:14px;margin-top:14px;}
 h3 {font-size:14px;color:#8b949e;}
 .helper {font-size:11px;color:#8b949e;margin-bottom:2px;}
+
 input, select {
   width:100%;padding:11px;margin:6px 0;border-radius:10px;
   border:1px solid #30363d;background:#0d1117;color:white;
   font-size:16px;box-sizing:border-box;
 }
+
 .row {display:flex;gap:10px;}
 .row > div {flex:1;}
+
 button {
   padding:14px;border-radius:12px;border:none;
   background:#2ea043;color:white;font-size:16px;
   width:100%;margin-top:12px;
 }
+
 .result {margin-top:16px;background:#161b22;border-radius:14px;padding:15px;}
 .big {font-size:26px;font-weight:bold;color:#3fb950;}
 .item {padding:10px;border-bottom:1px solid #30363d;cursor:pointer;}
@@ -39,13 +38,7 @@ button {
 
 <header>HTS Tariff Engine</header>
 
-<div class="tabs">
-  <div class="tab active" onclick="switchTab('hts')">HTS Lookup</div>
-</div>
-
 <div class="container">
-
-<div id="hts" class="tab-content active">
 
 <div class="section">
 <h3>HTS Lookup</h3>
@@ -122,9 +115,8 @@ button {
 </div>
 
 <button onclick="calculate()">Calculate</button>
-<div id="output" class="result"></div>
 
-</div>
+<div id="output" class="result"></div>
 
 </div>
 
@@ -158,62 +150,61 @@ if(c||row.length){row.push(c);r.push(row);}
 return r;
 }
 
-/* 🔥 RESTORED WORKING PARSER */
+// ✅ FIXED: correct column mapping
 function parseHTS(t){
-let r=parseCSV(t);
-let h=r[0].map(x=>x.toLowerCase());
+  let r=parseCSV(t);
+  let headers=r[0].map(x=>x.toLowerCase().trim());
 
-let hi=h.findIndex(x=>x.includes("hts"));
-let di=h.findIndex(x=>x.includes("description"));
+  let hi=headers.findIndex(x=>x.includes("hts"));
+  let di=headers.findIndex(x=>x.includes("description"));
 
-// THIS IS THE KEY FIX (original working behavior)
-let du=h.findIndex(x=>x.includes("general"));
+  // 🔥 exact match to your file
+  let du=headers.findIndex(x=>x==="mfn_ad_val_rate");
 
-HTS_DATA=r.slice(1).map(c=>({
-  hts:(c[hi]||"").replace(/\D/g,'').substring(0,8),
-  originalHTS:c[hi],
-  description:c[di],
-  duty:parseFloat((c[du]||"0").replace("%",""))||0
-}));
-
-console.log("Sample HTS row:", HTS_DATA[0]);
+  HTS_DATA=r.slice(1).map(c=>({
+    hts:(c[hi]||"").replace(/\D/g,'').substring(0,8),
+    originalHTS:c[hi],
+    description:c[di],
+    duty:parseFloat(c[du]) || 0
+  }));
 }
 
 function parse301(t){
-let r=parseCSV(t);
-SECTION301_LIST=r.slice(1).map(c=>({
-hts:(c[0]||"").replace(/\D/g,'').substring(0,8),
-rate:parseFloat((c[2]||"0").replace("%",""))||0
-}));
+  let r=parseCSV(t);
+  SECTION301_LIST=r.slice(1).map(c=>({
+    hts:(c[0]||"").replace(/\D/g,'').substring(0,8),
+    rate:parseFloat((c[2]||"0").replace("%",""))||0
+  }));
 }
 
 function get301Rate(h){
-for(let i of SECTION301_LIST){
-if(h.startsWith(i.hts.substring(0,6))) return i.rate;}
-return 0;
+  for(let i of SECTION301_LIST){
+    if(h.startsWith(i.hts.substring(0,6))) return i.rate;
+  }
+  return 0;
 }
 
 function searchHTS(){
-let q=document.getElementById("search").value.toLowerCase();
+  let q=document.getElementById("search").value.toLowerCase();
 
-let results=HTS_DATA.filter(i =>
-i.hts.startsWith(q.replace(/\D/g,'')) ||
-(i.description||"").toLowerCase().includes(q)
-).slice(0,10);
+  let results=HTS_DATA.filter(i =>
+    i.hts.startsWith(q.replace(/\D/g,'')) ||
+    (i.description||"").toLowerCase().includes(q)
+  ).slice(0,10);
 
-let div=document.getElementById("results");
-div.innerHTML="";
+  let div=document.getElementById("results");
+  div.innerHTML="";
 
-results.forEach(i=>{
-let el=document.createElement("div");
-el.className="item";
-el.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
-el.onclick=()=>{
-selectedHTS=i;
-div.innerHTML=`Selected: ${i.originalHTS}`;
-};
-div.appendChild(el);
-});
+  results.forEach(i=>{
+    let el=document.createElement("div");
+    el.className="item";
+    el.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
+    el.onclick=()=>{
+      selectedHTS=i;
+      div.innerHTML=`Selected: ${i.originalHTS}`;
+    };
+    div.appendChild(el);
+  });
 }
 
 function calculate(){
@@ -228,10 +219,12 @@ let metal=+document.getElementById("metalPercent").value||0;
 let ptype=document.getElementById("productType").value;
 let us=document.getElementById("usMaterial").value;
 
-let gen=selectedHTS.duty;
+// ✅ convert to %
+let gen=selectedHTS.duty * 100;
+
 let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
 
-// Section 232
+// 232 logic
 let s232=0;
 let is232Applicable = metal > 0 || ptype || us==="yes";
 
@@ -249,6 +242,7 @@ let goods=costVal*unitsVal;
 let totalRate=gen+s301+s232+s122;
 let duty=goods*(totalRate/100);
 
+// precision fix
 let dGenUnit=(goods*(gen/100))/unitsVal;
 
 let section232Text = is232Applicable
@@ -267,7 +261,7 @@ document.getElementById("output").innerHTML=`
 <hr>
 
 <strong>Duty per Unit</strong><br>
-General Rate of Duty (${gen}%): $${dGenUnit.toFixed(3)}<br>
+General Rate of Duty (${gen.toFixed(1)}%): $${dGenUnit.toFixed(3)}<br>
 Section 301 (${s301}%): $${((goods*(s301/100))/unitsVal).toFixed(2)}<br>
 ${section232Text}<br>
 Section 122 (${s122}%): $${((goods*(s122/100))/unitsVal).toFixed(2)}<br>
