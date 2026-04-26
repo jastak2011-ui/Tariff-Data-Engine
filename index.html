@@ -5,126 +5,42 @@
 <title>HTS Tariff Engine</title>
 
 <style>
-body {
-  font-family:-apple-system,BlinkMacSystemFont,Arial;
-  background:#0d1117;
-  color:#e6edf3;
-  margin:0;
-}
+body {font-family:-apple-system,BlinkMacSystemFont,Arial;background:#0d1117;color:#e6edf3;margin:0;}
+header {background:#161b22;padding:18px;font-size:22px;text-align:center;border-bottom:1px solid #30363d;}
 
-header {
-  background:#161b22;
-  padding:18px;
-  font-size:22px;
-  text-align:center;
-  border-bottom:1px solid #30363d;
-}
+.tabs {display:flex;background:#161b22;border-bottom:1px solid #30363d;}
+.tab {flex:1;padding:14px;text-align:center;cursor:pointer;color:#8b949e;}
+.tab.active {color:white;border-bottom:2px solid #2ea043;}
 
-.tabs {
-  display:flex;
-  background:#161b22;
-  border-bottom:1px solid #30363d;
-}
+.container {max-width:520px;margin:auto;padding:12px;}
+.tab-content {display:none;}
+.tab-content.active {display:block;}
 
-.tab {
-  flex:1;
-  padding:14px;
-  text-align:center;
-  cursor:pointer;
-  color:#8b949e;
-}
+.section {background:#161b22;border-radius:14px;padding:14px;margin-top:14px;}
 
-.tab.active {
-  color:white;
-  border-bottom:2px solid #2ea043;
-}
-
-.container {
-  max-width:520px;
-  margin:auto;
-  padding:12px;
-}
-
-.tab-content {
-  display:none;
-}
-
-.tab-content.active {
-  display:block;
-}
-
-.section {
-  background:#161b22;
-  border-radius:14px;
-  padding:14px;
-  margin-top:14px;
-}
-
-h3 {
-  font-size:14px;
-  color:#8b949e;
-}
-
-.helper {
-  font-size:11px;
-  color:#8b949e;
-  margin-bottom:2px;
-}
+h3 {font-size:14px;color:#8b949e;}
+.helper {font-size:11px;color:#8b949e;margin-bottom:2px;}
 
 input, select {
-  width:100%;
-  padding:11px;
-  margin:6px 0;
-  border-radius:10px;
-  border:1px solid #30363d;
-  background:#0d1117;
-  color:white;
-  font-size:16px;
-  box-sizing:border-box;
+  width:100%;padding:11px;margin:6px 0;border-radius:10px;
+  border:1px solid #30363d;background:#0d1117;color:white;
+  font-size:16px;box-sizing:border-box;
 }
 
-.row {
-  display:flex;
-  gap:10px;
-}
-
-.row > div {
-  flex:1;
-}
+.row {display:flex;gap:10px;}
+.row > div {flex:1;}
 
 button {
-  padding:14px;
-  border-radius:12px;
-  border:none;
-  background:#2ea043;
-  color:white;
-  font-size:16px;
-  width:100%;
-  margin-top:12px;
+  padding:14px;border-radius:12px;border:none;
+  background:#2ea043;color:white;font-size:16px;
+  width:100%;margin-top:12px;
 }
 
-.result {
-  margin-top:16px;
-  background:#161b22;
-  border-radius:14px;
-  padding:15px;
-}
+.result {margin-top:16px;background:#161b22;border-radius:14px;padding:15px;}
+.big {font-size:26px;font-weight:bold;color:#3fb950;}
 
-.big {
-  font-size:26px;
-  font-weight:bold;
-  color:#3fb950;
-}
-
-.item {
-  padding:10px;
-  border-bottom:1px solid #30363d;
-  cursor:pointer;
-}
-
-.item:hover {
-  background:#21262d;
-}
+.item {padding:10px;border-bottom:1px solid #30363d;cursor:pointer;}
+.item:hover {background:#21262d;}
 </style>
 </head>
 
@@ -193,6 +109,7 @@ button {
 </div>
 
 <button onclick="calculate()">Calculate</button>
+<div id="output" class="result"></div>
 
 </div>
 
@@ -205,7 +122,7 @@ button {
 <div id="productResults"></div>
 </div>
 
-<div id="output" class="result"></div>
+<div id="productOutput" class="result"></div>
 
 </div>
 
@@ -220,21 +137,16 @@ window.onload = async function(){
   await loadProducts();
 };
 
-// TAB SWITCH
+// TABS
 function switchTab(id){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
 
-  if(id==="hts"){
-    document.querySelectorAll(".tab")[0].classList.add("active");
-  } else {
-    document.querySelectorAll(".tab")[1].classList.add("active");
-  }
-
+  document.querySelector(`[onclick="switchTab('${id}')"]`).classList.add("active");
   document.getElementById(id).classList.add("active");
 }
 
-// FORMAT UNITS WITH COMMAS
+// FORMAT UNITS
 function formatUnits(input){
   let val = input.value.replace(/,/g,'').replace(/\D/g,'');
   if(val){
@@ -246,9 +158,11 @@ function formatUnits(input){
 async function loadData(){
   let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
   let s=await fetch("Listed Commodities.csv").then(r=>r.text());
-  parseHTS(h);parse301(s);
+  parseHTS(h);
+  parse301(s);
 }
 
+// LOAD PRODUCTS
 async function loadProducts(){
   let res=await fetch("products.csv");
   let text=await res.text();
@@ -267,20 +181,26 @@ async function loadProducts(){
     item:r[itemIndex],
     description:r[descIndex],
     cost:parseFloat(r[costIndex])||0,
-    units:parseFloat(r[unitsIndex].replace(/,/g,''))||0,
+    units:parseFloat((r[unitsIndex]||"0").replace(/,/g,'')),
     country:normalizeCountry(r[cooIndex]),
     hts:r[htsIndex]
   }));
+
+  console.log("Products loaded:", PRODUCT_DATA.length);
 }
 
-// HELPERS
+// COUNTRY FIX
 function normalizeCountry(c){
+  if(!c) return "";
   c=c.toLowerCase();
   if(c.includes("china"))return"CN";
   if(c.includes("mexico"))return"MX";
+  if(c.includes("vietnam"))return"VN";
+  if(c.includes("india"))return"IN";
   return c.toUpperCase();
 }
 
+// CSV PARSER
 function parseCSV(t){
 const r=[];let row=[],c='',q=false;
 for(let ch of t){
@@ -293,17 +213,75 @@ if(c||row.length){row.push(c);r.push(row);}
 return r;
 }
 
+// HTS PARSE
+function parseHTS(t){
+let r=parseCSV(t);
+let h=r[0].map(x=>x.toLowerCase());
+
+let hi=h.findIndex(x=>x.includes("hts"));
+let di=h.findIndex(x=>x.includes("description"));
+let du=h.findIndex(x=>x.includes("general")||x.includes("mfn"));
+
+HTS_DATA=r.slice(1).map(c=>({
+hts:(c[hi]||"").replace(/\D/g,'').substring(0,8),
+originalHTS:c[hi],
+description:c[di],
+duty:parseFloat((c[du]||"0").replace("%",""))||0
+}));
+}
+
+// 301 PARSE
+function parse301(t){
+let r=parseCSV(t);
+SECTION301_LIST=r.slice(1).map(c=>({
+hts:(c[0]||"").replace(/\D/g,'').substring(0,8),
+rate:parseFloat((c[2]||"0").replace("%",""))||0
+}));
+}
+
+function get301Rate(h){
+for(let i of SECTION301_LIST){
+if(h.startsWith(i.hts.substring(0,6))) return i.rate;}
+return 0;
+}
+
+// HTS SEARCH
+function searchHTS(){
+let q=document.getElementById("search").value.toLowerCase();
+
+let results=HTS_DATA.filter(i =>
+i.hts.startsWith(q.replace(/\D/g,'')) ||
+(i.description||"").toLowerCase().includes(q)
+).slice(0,10);
+
+let div=document.getElementById("results");
+div.innerHTML="";
+
+results.forEach(i=>{
+let el=document.createElement("div");
+el.className="item";
+el.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
+el.onclick=()=>{
+selectedHTS=i;
+div.innerHTML=`Selected: ${i.originalHTS}`;
+};
+div.appendChild(el);
+});
+}
+
 // PRODUCT SEARCH
 function searchProducts(){
 let q=document.getElementById("productSearch").value.toLowerCase();
-let m=PRODUCT_DATA.filter(p=>
-(p.item&&p.item.toLowerCase().includes(q))||
-(p.description&&p.description.toLowerCase().includes(q))
+
+let matches=PRODUCT_DATA.filter(p =>
+(p.item && p.item.toLowerCase().includes(q)) ||
+(p.description && p.description.toLowerCase().includes(q))
 ).slice(0,10);
 
 let div=document.getElementById("productResults");
 div.innerHTML="";
-m.forEach(p=>{
+
+matches.forEach(p=>{
 let el=document.createElement("div");
 el.className="item";
 el.innerHTML=`<strong>${p.item}</strong><br><small>${p.description}</small>`;
@@ -317,6 +295,7 @@ function selectProduct(p){
 
 let norm=p.hts.replace(/\D/g,'').substring(0,8);
 let match=HTS_DATA.find(x=>x.hts===norm);
+
 if(!match)return alert("HTS not found");
 
 let gen=match.duty;
@@ -326,7 +305,7 @@ let goods=p.cost*p.units;
 let totalRate=gen+s301+10;
 let duty=goods*(totalRate/100);
 
-document.getElementById("output").innerHTML=`
+document.getElementById("productOutput").innerHTML=`
 <div class="big">$${(p.cost + duty/p.units).toFixed(2)}</div>
 <div>Per Unit Cost</div>
 <hr>
@@ -335,29 +314,29 @@ Total Duty: $${duty.toLocaleString()}
 `;
 }
 
-// HTS PARSE
-function parseHTS(t){
-let r=parseCSV(t);
-HTS_DATA=r.slice(1).map(c=>({
-hts:c[0].replace(/\D/g,'').substring(0,8),
-originalHTS:c[0],
-description:c[1],
-duty:parseFloat(c[2])||0
-}));
-}
+// CALCULATE (MAIN ENGINE)
+function calculate(){
 
-function parse301(t){
-let r=parseCSV(t);
-SECTION301_LIST=r.slice(1).map(c=>({
-hts:c[0].replace(/\D/g,'').substring(0,8),
-rate:parseFloat(c[2])||0
-}));
-}
+if(!selectedHTS) return alert("Select HTS");
 
-function get301Rate(h){
-for(let i of SECTION301_LIST){
-if(h.startsWith(i.hts.substring(0,6))) return i.rate;}
-return 0;
+let costVal=+document.getElementById("cost").value||0;
+let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
+let ctry=document.getElementById("country").value;
+
+let gen=selectedHTS.duty;
+let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
+
+let goods=costVal*unitsVal;
+let totalRate=gen+s301+10;
+let duty=goods*(totalRate/100);
+
+document.getElementById("output").innerHTML=`
+<div class="big">$${(costVal + duty/unitsVal).toFixed(2)}</div>
+<div>Per Unit Cost</div>
+<hr>
+Goods Value: $${goods.toLocaleString()}<br>
+Total Duty: $${duty.toLocaleString()}
+`;
 }
 
 </script>
