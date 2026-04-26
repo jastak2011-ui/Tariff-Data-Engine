@@ -7,8 +7,17 @@
 <style>
 body {font-family:-apple-system,BlinkMacSystemFont,Arial;background:#0d1117;color:#e6edf3;margin:0;}
 header {background:#161b22;padding:18px;font-size:22px;text-align:center;border-bottom:1px solid #30363d;}
+
+.tabs {display:flex;background:#161b22;border-bottom:1px solid #30363d;}
+.tab {flex:1;padding:14px;text-align:center;cursor:pointer;color:#8b949e;}
+.tab.active {color:white;border-bottom:2px solid #2ea043;}
+
 .container {max-width:520px;margin:auto;padding:12px;}
+.tab-content {display:none;}
+.tab-content.active {display:block;}
+
 .section {background:#161b22;border-radius:14px;padding:14px;margin-top:14px;}
+
 h3 {font-size:14px;color:#8b949e;}
 .helper {font-size:11px;color:#8b949e;margin-bottom:2px;}
 
@@ -29,6 +38,7 @@ button {
 
 .result {margin-top:16px;background:#161b22;border-radius:14px;padding:15px;}
 .big {font-size:26px;font-weight:bold;color:#3fb950;}
+
 .item {padding:10px;border-bottom:1px solid #30363d;cursor:pointer;}
 .item:hover {background:#21262d;}
 </style>
@@ -38,7 +48,15 @@ button {
 
 <header>HTS Tariff Engine</header>
 
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('hts')">HTS Lookup</div>
+  <div class="tab" onclick="switchTab('products')">Current Products</div>
+</div>
+
 <div class="container">
+
+<!-- HTS TAB -->
+<div id="hts" class="tab-content active">
 
 <div class="section">
 <h3>HTS Lookup</h3>
@@ -115,20 +133,47 @@ button {
 </div>
 
 <button onclick="calculate()">Calculate</button>
-
 <div id="output" class="result"></div>
+
+</div>
+
+<!-- CURRENT PRODUCTS TAB -->
+<div id="products" class="tab-content">
+
+<div class="section">
+<h3>Search Current Products</h3>
+<input id="productSearch" placeholder="Search Item or Description" oninput="searchProducts()">
+<div id="productResults"></div>
+</div>
+
+<div id="productOutput" class="result"></div>
+
+</div>
 
 </div>
 
 <script>
 
-let HTS_DATA=[],SECTION301_LIST=[],selectedHTS=null;
+let HTS_DATA=[],SECTION301_LIST=[],PRODUCT_DATA=[],selectedHTS=null;
+
+window.onload = async function(){
+  await loadData();
+  await loadProducts();
+};
+
+function switchTab(id){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.querySelector(`[onclick="switchTab('${id}')"]`).classList.add("active");
+  document.getElementById(id).classList.add("active");
+}
 
 function formatUnits(input){
   let val = input.value.replace(/,/g,'').replace(/\D/g,'');
   if(val){ input.value = parseInt(val).toLocaleString(); }
 }
 
+// LOAD DATA
 async function loadData(){
   let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
   let s=await fetch("Listed Commodities.csv").then(r=>r.text());
@@ -136,8 +181,42 @@ async function loadData(){
   parse301(s);
 }
 
-window.onload = loadData;
+// LOAD PRODUCTS
+async function loadProducts(){
+  let res=await fetch("products.csv");
+  let text=await res.text();
 
+  let rows=parseCSV(text);
+  let headers=rows[0].map(h=>h.toLowerCase());
+
+  let itemIndex=headers.indexOf("item");
+  let descIndex=headers.indexOf("description");
+  let costIndex=headers.findIndex(h=>h.includes("unit"));
+  let unitsIndex=headers.findIndex(h=>h.includes("annual"));
+  let cooIndex=headers.findIndex(h=>h.includes("country"));
+  let htsIndex=headers.findIndex(h=>h.includes("hts"));
+
+  PRODUCT_DATA=rows.slice(1).map(r=>({
+    item:r[itemIndex],
+    description:r[descIndex],
+    cost:parseFloat((r[costIndex]||"0").replace("$",""))||0,
+    units:parseFloat((r[unitsIndex]||"0").replace(/,/g,'')),
+    country:normalizeCountry(r[cooIndex]),
+    hts:r[htsIndex]
+  }));
+}
+
+function normalizeCountry(c){
+  if(!c) return "";
+  c=c.toLowerCase();
+  if(c.includes("china"))return"CN";
+  if(c.includes("mexico"))return"MX";
+  if(c.includes("vietnam"))return"VN";
+  if(c.includes("india"))return"IN";
+  return c.toUpperCase();
+}
+
+// CSV PARSER
 function parseCSV(t){
 const r=[];let row=[],c='',q=false;
 for(let ch of t){
@@ -150,15 +229,13 @@ if(c||row.length){row.push(c);r.push(row);}
 return r;
 }
 
-// ✅ FIXED: correct column mapping
+// HTS PARSE (FIXED)
 function parseHTS(t){
   let r=parseCSV(t);
   let headers=r[0].map(x=>x.toLowerCase().trim());
 
   let hi=headers.findIndex(x=>x.includes("hts"));
   let di=headers.findIndex(x=>x.includes("description"));
-
-  // 🔥 exact match to your file
   let du=headers.findIndex(x=>x==="mfn_ad_val_rate");
 
   HTS_DATA=r.slice(1).map(c=>({
@@ -184,6 +261,7 @@ function get301Rate(h){
   return 0;
 }
 
+// HTS SEARCH
 function searchHTS(){
   let q=document.getElementById("search").value.toLowerCase();
 
@@ -207,49 +285,62 @@ function searchHTS(){
   });
 }
 
-function calculate(){
+// PRODUCT SEARCH
+function searchProducts(){
+let q=document.getElementById("productSearch").value.toLowerCase();
 
-if(!selectedHTS) return alert("Select HTS");
+let matches=PRODUCT_DATA.filter(p =>
+(p.item && p.item.toLowerCase().includes(q)) ||
+(p.description && p.description.toLowerCase().includes(q))
+).slice(0,10);
 
-let costVal=+document.getElementById("cost").value||0;
-let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
-let ctry=document.getElementById("country").value;
+let div=document.getElementById("productResults");
+div.innerHTML="";
 
-let metal=+document.getElementById("metalPercent").value||0;
-let ptype=document.getElementById("productType").value;
-let us=document.getElementById("usMaterial").value;
-
-// ✅ convert to %
-let gen=selectedHTS.duty * 100;
-
-let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
-
-// 232 logic
-let s232=0;
-let is232Applicable = metal > 0 || ptype || us==="yes";
-
-if(is232Applicable){
-  if(metal<=15)s232=0;
-  else if(us==="yes")s232=10;
-  else if(ptype==="industrial")s232=15;
-  else if(ptype==="derivative")s232=25;
-  else if(ptype==="raw")s232=50;
+matches.forEach(p=>{
+let el=document.createElement("div");
+el.className="item";
+el.innerHTML=`<strong>${p.item}</strong><br><small>${p.description}</small>`;
+el.onclick=()=>selectProduct(p);
+div.appendChild(el);
+});
 }
 
-let s122=s232>0?0:10;
+// SELECT PRODUCT
+function selectProduct(p){
+
+let norm=p.hts.replace(/\D/g,'').substring(0,8);
+let match=HTS_DATA.find(x=>x.hts===norm);
+
+if(!match){alert("HTS not found");return;}
+
+selectedHTS=match;
+
+// run SAME engine
+document.getElementById("productOutput").innerHTML =
+buildOutput(p.cost, p.units, p.country);
+}
+
+// SHARED ENGINE
+function buildOutput(costVal, unitsVal, ctry){
+
+let gen=selectedHTS.duty * 100;
+let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
+
+// no 232 inputs for product mode (yet)
+let s232=0;
+let s122=10;
 
 let goods=costVal*unitsVal;
 let totalRate=gen+s301+s232+s122;
 let duty=goods*(totalRate/100);
 
-// precision fix
 let dGenUnit=(goods*(gen/100))/unitsVal;
 
-let section232Text = is232Applicable
-  ? `Section 232 (${s232}%): $${((goods*(s232/100))/unitsVal).toFixed(2)}`
-  : `Section 232: Not subject`;
+let s301html=ctry==="CN"
+?`Section 301 (${s301}%): $${((goods*(s301/100))/unitsVal).toFixed(2)}<br>`:"";
 
-document.getElementById("output").innerHTML=`
+return `
 <div class="big">$${(costVal + duty/unitsVal).toFixed(2)}</div>
 <div>Per Unit Landed Cost</div>
 
@@ -262,14 +353,27 @@ document.getElementById("output").innerHTML=`
 
 <strong>Duty per Unit</strong><br>
 General Rate of Duty (${gen.toFixed(1)}%): $${dGenUnit.toFixed(3)}<br>
-Section 301 (${s301}%): $${((goods*(s301/100))/unitsVal).toFixed(2)}<br>
-${section232Text}<br>
+${s301html}
+Section 232: Not subject<br>
 Section 122 (${s122}%): $${((goods*(s122/100))/unitsVal).toFixed(2)}<br>
 
 <hr>
 
 <strong>Total Duty per Unit:</strong> $${(duty/unitsVal).toFixed(2)}
 `;
+}
+
+// MAIN CALC
+function calculate(){
+
+if(!selectedHTS) return alert("Select HTS");
+
+let costVal=+document.getElementById("cost").value||0;
+let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
+let ctry=document.getElementById("country").value;
+
+document.getElementById("output").innerHTML =
+buildOutput(costVal, unitsVal, ctry);
 }
 
 </script>
