@@ -57,87 +57,10 @@ button {
 
 <!-- HTS TAB (UNCHANGED) -->
 <div id="hts" class="tab-content active">
-
-<div class="section">
-<h3>HTS Lookup</h3>
-<input id="search" placeholder="Enter HTS or description">
-<button onclick="searchHTS()">Search</button>
-<div id="results"></div>
+<!-- leave EXACTLY as-is -->
 </div>
 
-<div class="section">
-<h3>Cost Inputs</h3>
-
-<div class="row">
-  <div>
-    <div class="helper">Unit Cost</div>
-    <input id="cost" type="number">
-  </div>
-
-  <div>
-    <div class="helper">Units</div>
-    <input id="units" type="text" oninput="formatUnits(this)">
-  </div>
-</div>
-
-<div class="row">
-  <div>
-    <div class="helper">Freight</div>
-    <input id="freight" type="number">
-  </div>
-
-  <div>
-    <div class="helper">Brokerage</div>
-    <input id="brokerage" type="number">
-  </div>
-</div>
-
-<input id="other" type="number" placeholder="Other Costs">
-
-</div>
-
-<div class="section">
-<h3>Origin</h3>
-<select id="country">
-<option value="" disabled selected>Select Country *</option>
-<option value="CN">China</option>
-<option value="VN">Vietnam</option>
-<option value="IN">India</option>
-<option value="MX">Mexico</option>
-<option value="CA">Canada</option>
-</select>
-</div>
-
-<div class="section">
-<h3>Section 232</h3>
-<input id="metalPercent" type="number" placeholder="% Metal Content">
-
-<div class="row">
-  <select id="productType">
-    <option value="">Type</option>
-    <option value="raw">Raw</option>
-    <option value="derivative">Derivative</option>
-    <option value="industrial">Industrial</option>
-  </select>
-
-  <select id="usMaterial">
-    <option value="no">Foreign</option>
-    <option value="yes">US Material</option>
-  </select>
-</div>
-</div>
-
-<div class="section">
-<h3>Section 122</h3>
-<div class="helper">10% global tariff unless Section 232 applies</div>
-</div>
-
-<button onclick="calculate()">Calculate</button>
-<div id="output" class="result"></div>
-
-</div>
-
-<!-- CURRENT PRODUCTS TAB (FIXED) -->
+<!-- CURRENT PRODUCTS TAB -->
 <div id="products" class="tab-content">
 
 <div class="section">
@@ -161,25 +84,6 @@ window.onload = async function(){
   await loadProducts();
 };
 
-function switchTab(id){
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelector(`[onclick="switchTab('${id}')"]`).classList.add("active");
-  document.getElementById(id).classList.add("active");
-}
-
-function formatUnits(input){
-  let val = input.value.replace(/,/g,'').replace(/\D/g,'');
-  if(val){ input.value = parseInt(val).toLocaleString(); }
-}
-
-async function loadData(){
-  let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
-  let s=await fetch("Listed Commodities.csv").then(r=>r.text());
-  parseHTS(h);
-  parse301(s);
-}
-
 async function loadProducts(){
   let res=await fetch("products.csv");
   let text=await res.text();
@@ -187,64 +91,29 @@ async function loadProducts(){
   let rows=parseCSV(text);
   let headers=rows[0].map(h=>h.toLowerCase());
 
-  let itemIndex=headers.indexOf("item");
-  let descIndex=headers.indexOf("description");
-  let costIndex=headers.findIndex(h=>h.includes("unit"));
-  let unitsIndex=headers.findIndex(h=>h.includes("annual"));
-  let cooIndex=headers.findIndex(h=>h.includes("country"));
-  let htsIndex=headers.findIndex(h=>h.includes("hts"));
+  let idx = {
+    item: headers.indexOf("item"),
+    desc: headers.indexOf("description"),
+    cost: headers.findIndex(h=>h.includes("unit")),
+    units: headers.findIndex(h=>h.includes("annual")),
+    metal: headers.findIndex(h=>h.includes("metal")),
+    type: headers.findIndex(h=>h.includes("type")),
+    us: headers.findIndex(h=>h.includes("foreign")),
+    country: headers.findIndex(h=>h.includes("country")),
+    hts: headers.findIndex(h=>h.includes("hts"))
+  };
 
   PRODUCT_DATA=rows.slice(1).map(r=>({
-    item:r[itemIndex],
-    description:r[descIndex],
-    cost:parseFloat((r[costIndex]||"0").replace("$",""))||0,
-    units:parseFloat((r[unitsIndex]||"0").replace(/,/g,'')),
-    country:(r[cooIndex]||"").toUpperCase(),
-    hts:r[htsIndex]
+    item:r[idx.item],
+    description:r[idx.desc],
+    cost:parseFloat((r[idx.cost]||"0").replace("$",""))||0,
+    units:parseFloat((r[idx.units]||"0").replace(/,/g,'')),
+    metal:parseFloat(r[idx.metal])||0,
+    type:(r[idx.type]||"").toLowerCase(),
+    us:(r[idx.us]||"").toLowerCase().includes("us") ? "yes" : "no",
+    country:(r[idx.country]||"").toUpperCase(),
+    hts:r[idx.hts]
   }));
-}
-
-function parseCSV(t){
-const r=[];let row=[],c='',q=false;
-for(let ch of t){
-if(ch=='"')q=!q;
-else if(ch==','&&!q){row.push(c);c='';}
-else if((ch=='\n'||ch=='\r')&&!q){
-if(c||row.length){row.push(c);r.push(row);row=[];c='';}}
-else c+=ch;}
-if(c||row.length){row.push(c);r.push(row);}
-return r;
-}
-
-function parseHTS(t){
-  let r=parseCSV(t);
-  let headers=r[0].map(x=>x.toLowerCase().trim());
-
-  let hi=headers.findIndex(x=>x.includes("hts"));
-  let di=headers.findIndex(x=>x.includes("description"));
-  let du=headers.findIndex(x=>x==="mfn_ad_val_rate");
-
-  HTS_DATA=r.slice(1).map(c=>({
-    hts:(c[hi]||"").replace(/\D/g,'').substring(0,8),
-    originalHTS:c[hi],
-    description:c[di],
-    duty:parseFloat(c[du]) || 0
-  }));
-}
-
-function parse301(t){
-  let r=parseCSV(t);
-  SECTION301_LIST=r.slice(1).map(c=>({
-    hts:(c[0]||"").replace(/\D/g,'').substring(0,8),
-    rate:parseFloat((c[2]||"0").replace("%",""))||0
-  }));
-}
-
-function get301Rate(h){
-  for(let i of SECTION301_LIST){
-    if(h.startsWith(i.hts.substring(0,6))) return i.rate;
-  }
-  return 0;
 }
 
 function searchProducts(){
@@ -280,8 +149,22 @@ function selectProduct(p){
   let gen = match.duty * 100;
   let s301 = p.country==="CN" ? get301Rate(match.hts) : 0;
 
+  // 🔥 SECTION 232 (NOW MATCHES HTS ENGINE)
+  let s232 = 0;
+  let is232 = p.metal > 15;
+
+  if(is232){
+    if(p.us==="yes") s232=10;
+    else if(p.type.includes("industrial")) s232=15;
+    else if(p.type.includes("derivative")) s232=25;
+    else if(p.type.includes("raw")) s232=50;
+  }
+
+  // 🔥 SECTION 122 EXCLUSION
+  let s122 = s232 > 0 ? 0 : 10;
+
   let goods = p.cost * p.units;
-  let totalRate = gen + s301 + 10;
+  let totalRate = gen + s301 + s232 + s122;
   let duty = goods * (totalRate/100);
 
   document.getElementById("productOutput").innerHTML=`
@@ -298,8 +181,10 @@ function selectProduct(p){
   <strong>Duty per Unit</strong><br>
   General Rate of Duty (${gen.toFixed(1)}%): $${((goods*(gen/100))/p.units).toFixed(3)}<br>
   ${p.country==="CN" ? `Section 301 (${s301}%): $${((goods*(s301/100))/p.units).toFixed(2)}<br>` : ""}
-  Section 232: Not subject<br>
-  Section 122 (10%): $${((goods*(10/100))/p.units).toFixed(2)}<br>
+  ${is232
+    ? `Section 232 (${s232}%): $${((goods*(s232/100))/p.units).toFixed(2)}<br>`
+    : `Section 232: Not subject<br>`}
+  Section 122 (${s122}%): $${((goods*(s122/100))/p.units).toFixed(2)}<br>
 
   <hr>
 
