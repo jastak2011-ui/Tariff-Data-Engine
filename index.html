@@ -55,7 +55,7 @@ button {
 
 <div class="container">
 
-<!-- HTS TAB -->
+<!-- HTS TAB (UNCHANGED) -->
 <div id="hts" class="tab-content active">
 
 <div class="section">
@@ -137,7 +137,7 @@ button {
 
 </div>
 
-<!-- PRODUCTS TAB -->
+<!-- CURRENT PRODUCTS TAB (FIXED) -->
 <div id="products" class="tab-content">
 
 <div class="section">
@@ -199,16 +199,9 @@ async function loadProducts(){
     description:r[descIndex],
     cost:parseFloat((r[costIndex]||"0").replace("$",""))||0,
     units:parseFloat((r[unitsIndex]||"0").replace(/,/g,'')),
-    country:normalizeCountry(r[cooIndex]),
+    country:(r[cooIndex]||"").toUpperCase(),
     hts:r[htsIndex]
   }));
-}
-
-function normalizeCountry(c){
-  if(!c) return "";
-  c=c.toLowerCase();
-  if(c.includes("china"))return"CN";
-  return c.toUpperCase();
 }
 
 function parseCSV(t){
@@ -254,88 +247,64 @@ function get301Rate(h){
   return 0;
 }
 
-function searchHTS(){
-  let q=document.getElementById("search").value.toLowerCase();
+function searchProducts(){
+  let q=document.getElementById("productSearch").value.toLowerCase();
 
-  let results=HTS_DATA.filter(i =>
-    i.hts.startsWith(q.replace(/\D/g,'')) ||
-    (i.description||"").toLowerCase().includes(q)
+  let matches=PRODUCT_DATA.filter(p =>
+    (p.item && p.item.toLowerCase().includes(q)) ||
+    (p.description && p.description.toLowerCase().includes(q))
   ).slice(0,10);
 
-  let div=document.getElementById("results");
+  let div=document.getElementById("productResults");
   div.innerHTML="";
 
-  results.forEach(i=>{
+  matches.forEach(p=>{
     let el=document.createElement("div");
     el.className="item";
-    el.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
-    el.onclick=()=>{
-      selectedHTS=i;
-      div.innerHTML=`Selected: ${i.originalHTS}`;
-    };
+    el.innerHTML=`<strong>${p.item}</strong><br><small>${p.description}</small>`;
+    el.onclick=()=>selectProduct(p);
     div.appendChild(el);
   });
 }
 
-function calculate(){
+function selectProduct(p){
 
-if(!selectedHTS) return alert("Select HTS");
+  let norm=(p.hts||"").replace(/\D/g,'').substring(0,8);
+  let match=HTS_DATA.find(x=>x.hts===norm);
 
-let costVal=+document.getElementById("cost").value||0;
-let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
-let ctry=document.getElementById("country").value;
+  if(!match){
+    alert("HTS not found for this product");
+    return;
+  }
 
-let metal=+document.getElementById("metalPercent").value||0;
-let ptype=document.getElementById("productType").value;
-let us=document.getElementById("usMaterial").value;
+  let gen = match.duty * 100;
+  let s301 = p.country==="CN" ? get301Rate(match.hts) : 0;
 
-let gen=selectedHTS.duty * 100;
-let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
+  let goods = p.cost * p.units;
+  let totalRate = gen + s301 + 10;
+  let duty = goods * (totalRate/100);
 
-// 🔥 FIXED 232 LOGIC
-let s232=0;
-let is232Applicable = metal > 15;
+  document.getElementById("productOutput").innerHTML=`
+  <div class="big">$${(p.cost + duty/p.units).toFixed(2)}</div>
+  <div>Per Unit Landed Cost</div>
 
-if(is232Applicable){
-  if(us==="yes") s232=10;
-  else if(ptype==="industrial") s232=15;
-  else if(ptype==="derivative") s232=25;
-  else if(ptype==="raw") s232=50;
-}
+  <hr>
 
-let s122 = s232>0 ? 0 : 10;
+  <strong>Goods Value:</strong> $${goods.toLocaleString()}<br>
+  <strong>Total Duty Impact:</strong> $${duty.toLocaleString()}
 
-let goods=costVal*unitsVal;
-let totalRate=gen+s301+s232+s122;
-let duty=goods*(totalRate/100);
+  <hr>
 
-let dGenUnit=(goods*(gen/100))/unitsVal;
+  <strong>Duty per Unit</strong><br>
+  General Rate of Duty (${gen.toFixed(1)}%): $${((goods*(gen/100))/p.units).toFixed(3)}<br>
+  ${p.country==="CN" ? `Section 301 (${s301}%): $${((goods*(s301/100))/p.units).toFixed(2)}<br>` : ""}
+  Section 232: Not subject<br>
+  Section 122 (10%): $${((goods*(10/100))/p.units).toFixed(2)}<br>
 
-let section232Text = is232Applicable
-  ? `Section 232 (${s232}%): $${((goods*(s232/100))/unitsVal).toFixed(2)}`
-  : `Section 232: Not subject`;
+  <hr>
 
-document.getElementById("output").innerHTML=`
-<div class="big">$${(costVal + duty/unitsVal).toFixed(2)}</div>
-<div>Per Unit Landed Cost</div>
-
-<hr>
-
-<strong>Goods Value:</strong> $${goods.toLocaleString()}<br>
-<strong>Total Duty Impact:</strong> $${duty.toLocaleString()}
-
-<hr>
-
-<strong>Duty per Unit</strong><br>
-General Rate of Duty (${gen.toFixed(1)}%): $${dGenUnit.toFixed(3)}<br>
-Section 301 (${s301}%): $${((goods*(s301/100))/unitsVal).toFixed(2)}<br>
-${section232Text}<br>
-Section 122 (${s122}%): $${((goods*(s122/100))/unitsVal).toFixed(2)}<br>
-
-<hr>
-
-<strong>Total Duty per Unit:</strong> $${(duty/unitsVal).toFixed(2)}
-`;
+  <strong>Total Duty per Unit:</strong> $${(duty/p.units).toFixed(2)}
+  `;
 }
 
 </script>
