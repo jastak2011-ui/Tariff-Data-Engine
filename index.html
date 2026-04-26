@@ -5,21 +5,104 @@
 <title>HTS Tariff Engine</title>
 
 <style>
-body {font-family:-apple-system,BlinkMacSystemFont,Arial;background:#0d1117;color:#e6edf3;margin:0;}
-header {background:#161b22;padding:18px;font-size:22px;text-align:center;border-bottom:1px solid #30363d;}
-.container {max-width:520px;margin:auto;padding:12px;}
-.section {background:#161b22;border-radius:14px;padding:14px;margin-top:14px;}
-h3 {font-size:14px;color:#8b949e;}
-input,select {width:100%;padding:11px;margin:6px 0;border-radius:10px;border:1px solid #30363d;background:#0d1117;color:white;font-size:16px;box-sizing:border-box;}
-.row {display:flex;gap:10px;}
-.row input,.row select {flex:1;}
-button {padding:14px;border-radius:12px;border:none;background:#2ea043;color:white;font-size:16px;width:100%;margin-top:12px;}
-.result {margin-top:16px;background:#161b22;border-radius:14px;padding:15px;}
-.big {font-size:26px;font-weight:bold;color:#3fb950;}
-.sub {color:#8b949e;font-size:13px;}
-.item {padding:10px;border-bottom:1px solid #30363d;cursor:pointer;}
-.item:hover {background:#21262d;}
-.helper {font-size:12px;color:#8b949e;}
+body {
+  font-family:-apple-system,BlinkMacSystemFont,Arial;
+  background:#0d1117;
+  color:#e6edf3;
+  margin:0;
+}
+
+header {
+  background:#161b22;
+  padding:18px;
+  font-size:22px;
+  text-align:center;
+  border-bottom:1px solid #30363d;
+}
+
+.container {
+  max-width:520px;
+  margin:auto;
+  padding:12px;
+}
+
+.section {
+  background:#161b22;
+  border-radius:14px;
+  padding:14px;
+  margin-top:14px;
+}
+
+h3 {
+  font-size:14px;
+  color:#8b949e;
+}
+
+.helper {
+  font-size:11px;
+  color:#8b949e;
+  margin-bottom:2px;
+}
+
+input, select {
+  width:100%;
+  padding:11px;
+  margin:6px 0;
+  border-radius:10px;
+  border:1px solid #30363d;
+  background:#0d1117;
+  color:white;
+  font-size:16px;
+  box-sizing:border-box;
+}
+
+.row {
+  display:flex;
+  gap:10px;
+}
+
+.row > div {
+  flex:1;
+}
+
+button {
+  padding:14px;
+  border-radius:12px;
+  border:none;
+  background:#2ea043;
+  color:white;
+  font-size:16px;
+  width:100%;
+  margin-top:12px;
+}
+
+.result {
+  margin-top:16px;
+  background:#161b22;
+  border-radius:14px;
+  padding:15px;
+}
+
+.big {
+  font-size:26px;
+  font-weight:bold;
+  color:#3fb950;
+}
+
+.sub {
+  color:#8b949e;
+  font-size:13px;
+}
+
+.item {
+  padding:10px;
+  border-bottom:1px solid #30363d;
+  cursor:pointer;
+}
+
+.item:hover {
+  background:#21262d;
+}
 </style>
 </head>
 
@@ -47,15 +130,36 @@ button {padding:14px;border-radius:12px;border:none;background:#2ea043;color:whi
 <!-- COST -->
 <div class="section">
 <h3>Cost Inputs</h3>
+
 <div class="row">
-<input id="cost" type="number" placeholder="Unit Cost">
-<input id="units" type="number" placeholder="Units">
+  <div>
+    <div class="helper">Unit Cost</div>
+    <input id="cost" type="number" placeholder="Unit Cost">
+  </div>
+
+  <div>
+    <div class="helper">Annual Forecast (Units)</div>
+    <input id="units" type="number" placeholder="Annual Forecast">
+  </div>
 </div>
+
 <div class="row">
-<input id="freight" type="number" placeholder="Freight">
-<input id="brokerage" type="number" placeholder="Brokerage">
+  <div>
+    <div class="helper">Freight</div>
+    <input id="freight" type="number" placeholder="Freight">
+  </div>
+
+  <div>
+    <div class="helper">Brokerage</div>
+    <input id="brokerage" type="number" placeholder="Brokerage">
+  </div>
 </div>
-<input id="other" type="number" placeholder="Other Costs">
+
+<div>
+  <div class="helper">Other Costs</div>
+  <input id="other" type="number" placeholder="Other Costs">
+</div>
+
 </div>
 
 <!-- COUNTRY -->
@@ -76,17 +180,19 @@ button {padding:14px;border-radius:12px;border:none;background:#2ea043;color:whi
 <div class="section">
 <h3 onclick="open232()" style="cursor:pointer;">Section 232 ⓘ</h3>
 <input id="metalPercent" type="number" placeholder="% Metal Content">
+
 <div class="row">
-<select id="productType">
-<option value="">Type</option>
-<option value="raw">Raw</option>
-<option value="derivative">Derivative</option>
-<option value="industrial">Industrial</option>
-</select>
-<select id="usMaterial">
-<option value="no">Foreign</option>
-<option value="yes">US Material</option>
-</select>
+  <select id="productType">
+    <option value="">Type</option>
+    <option value="raw">Raw</option>
+    <option value="derivative">Derivative</option>
+    <option value="industrial">Industrial</option>
+  </select>
+
+  <select id="usMaterial">
+    <option value="no">Foreign</option>
+    <option value="yes">US Material</option>
+  </select>
 </div>
 </div>
 
@@ -107,13 +213,13 @@ button {padding:14px;border-radius:12px;border:none;background:#2ea043;color:whi
 // DATA
 let HTS_DATA=[],SECTION301_LIST=[],PRODUCT_DATA=[],selectedHTS=null;
 
-// LOAD EVERYTHING
+// LOAD
 window.onload = async function(){
   await loadData();
   await loadProducts();
 };
 
-// LOAD TARIFF FILES
+// LOAD TARIFF DATA
 async function loadData(){
   let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
   let s=await fetch("Listed Commodities.csv").then(r=>r.text());
@@ -145,12 +251,10 @@ async function loadProducts(){
       hts:r[htsIndex]
     }));
 
-    console.log("Products loaded:",PRODUCT_DATA.length);
-
-  }catch(e){console.error("Product load failed",e);}
+  }catch(e){console.error(e);}
 }
 
-// COUNTRY FIX
+// COUNTRY NORMALIZE
 function normalizeCountry(c){
   if(!c) return "";
   c=c.toLowerCase();
@@ -205,7 +309,7 @@ if(c.substring(0,6)==i.hts.substring(0,6)) return i.rate;}
 return 0;
 }
 
-// PRODUCT SEARCH
+// SEARCH PRODUCTS
 function searchProducts(){
 let q=document.getElementById("productSearch").value.toLowerCase();
 let m=PRODUCT_DATA.filter(p=>
@@ -241,7 +345,7 @@ selectedHTS=match;
 document.getElementById("results").innerHTML=
 `Selected: ${match.originalHTS} - ${match.description}`;
 
-calculate(); // 🔥 auto run
+calculate();
 }
 
 // CALCULATE
