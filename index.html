@@ -18,9 +18,6 @@ header {background:#161b22;padding:18px;font-size:22px;text-align:center;border-
 
 .section {background:#161b22;border-radius:14px;padding:14px;margin-top:14px;}
 
-h3 {font-size:14px;color:#8b949e;}
-.helper {font-size:11px;color:#8b949e;margin-bottom:2px;}
-
 input, select {
   width:100%;padding:11px;margin:6px 0;border-radius:10px;
   border:1px solid #30363d;background:#0d1117;color:white;
@@ -59,47 +56,26 @@ button {
 <div id="hts" class="tab-content active">
 
 <div class="section">
-<h3>HTS Lookup</h3>
 <input id="search" placeholder="Enter HTS or description">
 <button onclick="searchHTS()">Search</button>
 <div id="results"></div>
 </div>
 
 <div class="section">
-<h3>Cost Inputs</h3>
-
 <div class="row">
-  <div>
-    <div class="helper">Unit Cost</div>
-    <input id="cost" type="number">
-  </div>
-
-  <div>
-    <div class="helper">Units</div>
-    <input id="units" type="text" oninput="formatUnits(this)">
-  </div>
+  <input id="cost" type="number" placeholder="Unit Cost">
+  <input id="units" type="text" placeholder="Units" oninput="formatUnits(this)">
 </div>
 
 <div class="row">
-  <div>
-    <div class="helper">Freight</div>
-    <input id="freight" type="number">
-  </div>
-
-  <div>
-    <div class="helper">Brokerage</div>
-    <input id="brokerage" type="number">
-  </div>
+  <input id="freight" type="number" placeholder="Freight">
+  <input id="brokerage" type="number" placeholder="Brokerage">
 </div>
-
-<input id="other" type="number" placeholder="Other Costs">
-
 </div>
 
 <div class="section">
-<h3>Origin</h3>
 <select id="country">
-<option value="" disabled selected>Select Country *</option>
+<option value="" disabled selected>Country of Origin</option>
 <option value="CN">China</option>
 <option value="VN">Vietnam</option>
 <option value="IN">India</option>
@@ -109,30 +85,23 @@ button {
 </div>
 
 <div class="section">
-<h3>Section 232</h3>
 <input id="metalPercent" type="number" placeholder="% Metal Content">
-
 <div class="row">
-  <select id="productType">
-    <option value="">Type</option>
-    <option value="raw">Raw</option>
-    <option value="derivative">Derivative</option>
-    <option value="industrial">Industrial</option>
-  </select>
+<select id="productType">
+<option value="">Type</option>
+<option value="raw">Raw</option>
+<option value="derivative">Derivative</option>
+<option value="industrial">Industrial</option>
+</select>
 
-  <select id="usMaterial">
-    <option value="no">Foreign</option>
-    <option value="yes">US Material</option>
-  </select>
+<select id="usMaterial">
+<option value="no">Foreign Material</option>
+<option value="yes">US Material</option>
+</select>
 </div>
 </div>
 
-<div class="section">
-<h3>Section 122</h3>
-<div class="helper">10% global tariff unless Section 232 applies</div>
-</div>
-
-<button onclick="calculate()">Calculate</button>
+<button onclick="runHTS()">Calculate</button>
 <div id="output" class="result"></div>
 
 </div>
@@ -141,8 +110,7 @@ button {
 <div id="products" class="tab-content">
 
 <div class="section">
-<h3>Search Current Products</h3>
-<input id="productSearch" placeholder="Search Item or Description" oninput="searchProducts()">
+<input id="productSearch" placeholder="Search products" oninput="searchProducts()">
 <div id="productResults"></div>
 </div>
 
@@ -154,63 +122,64 @@ button {
 
 <script>
 
-let HTS_DATA=[],SECTION301_LIST=[],PRODUCT_DATA=[],selectedHTS=null;
+// =========================
+// 🔒 CORE ENGINE (DO NOT TOUCH)
+// =========================
+function tariffEngine(i){
 
-window.onload = async function(){
-  await loadData();
-  await loadProducts();
+let selected = i.htsData.find(x => x.hts === i.hts);
+if(!selected) return { error:"HTS not found" };
+
+let gen = selected.duty * 100;
+
+let s301 = i.country==="CN"
+  ? get301Rate(i.hts, i.section301)
+  : 0;
+
+let s232 = 0;
+let is232 = i.metal > 15;
+
+if(is232){
+  if(i.us==="yes") s232=10;
+  else if(i.type==="industrial") s232=15;
+  else if(i.type==="derivative") s232=25;
+  else if(i.type==="raw") s232=50;
+}
+
+let s122 = s232>0 ? 0 : 10;
+
+let goods = i.cost * i.units;
+let totalRate = gen + s301 + s232 + s122;
+let duty = goods * (totalRate/100);
+
+return {
+  gen, s301, s232, s122,
+  goods,
+  duty,
+  perUnit: duty/i.units,
+  landed: i.cost + (duty/i.units)
+};
+}
+Object.freeze(tariffEngine);
+
+// =========================
+// DATA
+// =========================
+let HTS_DATA=[],SECTION301=[],PRODUCTS=[],selectedHTS=null;
+
+window.onload = async()=>{
+let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
+let s=await fetch("Listed Commodities.csv").then(r=>r.text());
+let p=await fetch("products.csv").then(r=>r.text());
+
+parseHTS(h);
+parse301(s);
+parseProducts(p);
 };
 
-function switchTab(id){
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
-  document.querySelector(`[onclick="switchTab('${id}')"]`).classList.add("active");
-  document.getElementById(id).classList.add("active");
-}
-
-function formatUnits(input){
-  let val = input.value.replace(/,/g,'').replace(/\D/g,'');
-  if(val){ input.value = parseInt(val).toLocaleString(); }
-}
-
-async function loadData(){
-  let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
-  let s=await fetch("Listed Commodities.csv").then(r=>r.text());
-  parseHTS(h);
-  parse301(s);
-}
-
-async function loadProducts(){
-  let res=await fetch("products.csv");
-  let text=await res.text();
-
-  let rows=parseCSV(text);
-  let headers=rows[0].map(h=>h.toLowerCase());
-
-  let itemIndex=headers.indexOf("item");
-  let descIndex=headers.indexOf("description");
-  let costIndex=headers.findIndex(h=>h.includes("unit"));
-  let unitsIndex=headers.findIndex(h=>h.includes("annual"));
-  let cooIndex=headers.findIndex(h=>h.includes("country"));
-  let htsIndex=headers.findIndex(h=>h.includes("hts"));
-
-  PRODUCT_DATA=rows.slice(1).map(r=>({
-    item:r[itemIndex],
-    description:r[descIndex],
-    cost:parseFloat((r[costIndex]||"0").replace("$",""))||0,
-    units:parseFloat((r[unitsIndex]||"0").replace(/,/g,'')),
-    country:normalizeCountry(r[cooIndex]),
-    hts:r[htsIndex]
-  }));
-}
-
-function normalizeCountry(c){
-  if(!c) return "";
-  c=c.toLowerCase();
-  if(c.includes("china"))return"CN";
-  return c.toUpperCase();
-}
-
+// =========================
+// PARSERS
+// =========================
 function parseCSV(t){
 const r=[];let row=[],c='',q=false;
 for(let ch of t){
@@ -224,118 +193,178 @@ return r;
 }
 
 function parseHTS(t){
-  let r=parseCSV(t);
-  let headers=r[0].map(x=>x.toLowerCase().trim());
+let r=parseCSV(t);
+let h=r[0].map(x=>x.toLowerCase());
 
-  let hi=headers.findIndex(x=>x.includes("hts"));
-  let di=headers.findIndex(x=>x.includes("description"));
-  let du=headers.findIndex(x=>x==="mfn_ad_val_rate");
+let hi=h.findIndex(x=>x.includes("hts"));
+let di=h.findIndex(x=>x.includes("description"));
+let du=h.findIndex(x=>x==="mfn_ad_val_rate");
 
-  HTS_DATA=r.slice(1).map(c=>({
-    hts:(c[hi]||"").replace(/\D/g,'').substring(0,8),
-    originalHTS:c[hi],
-    description:c[di],
-    duty:parseFloat(c[du]) || 0
-  }));
+HTS_DATA=r.slice(1).map(c=>({
+hts:(c[hi]||"").replace(/\D/g,'').substring(0,8),
+original:c[hi],
+desc:c[di],
+duty:parseFloat(c[du])||0
+}));
 }
 
 function parse301(t){
-  let r=parseCSV(t);
-  SECTION301_LIST=r.slice(1).map(c=>({
-    hts:(c[0]||"").replace(/\D/g,'').substring(0,8),
-    rate:parseFloat((c[2]||"0").replace("%",""))||0
-  }));
+let r=parseCSV(t);
+SECTION301=r.slice(1).map(c=>({
+hts:(c[0]||"").replace(/\D/g,'').substring(0,8),
+rate:parseFloat((c[2]||"0").replace("%",""))||0
+}));
 }
 
-function get301Rate(h){
-  for(let i of SECTION301_LIST){
-    if(h.startsWith(i.hts.substring(0,6))) return i.rate;
-  }
-  return 0;
+function parseProducts(t){
+let r=parseCSV(t);
+let h=r[0].map(x=>x.toLowerCase());
+
+PRODUCTS=r.slice(1).map(c=>({
+item:c[h.indexOf("item")],
+desc:c[h.indexOf("description")],
+cost:parseFloat(c[h.findIndex(x=>x.includes("unit"))])||0,
+units:parseFloat((c[h.findIndex(x=>x.includes("annual"))]||"0").replace(/,/g,'')),
+country:normalize(c[h.findIndex(x=>x.includes("country"))]),
+hts:c[h.findIndex(x=>x.includes("hts"))]
+}));
 }
 
+function normalize(c){
+if(!c) return "";
+c=c.toLowerCase();
+if(c.includes("china"))return"CN";
+return c.toUpperCase();
+}
+
+// =========================
+// HELPERS
+// =========================
+function get301Rate(h,list){
+for(let i of list){
+if(h.startsWith(i.hts.substring(0,6))) return i.rate;
+}
+return 0;
+}
+
+function formatUnits(i){
+let v=i.value.replace(/,/g,'').replace(/\D/g,'');
+if(v)i.value=parseInt(v).toLocaleString();
+}
+
+// =========================
+// UI
+// =========================
+function switchTab(id){
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+document.querySelector(`[onclick="switchTab('${id}')"]`).classList.add("active");
+document.getElementById(id).classList.add("active");
+}
+
+// =========================
+// HTS FLOW
+// =========================
 function searchHTS(){
-  let q=document.getElementById("search").value.toLowerCase();
+let q=document.getElementById("search").value.toLowerCase();
+let m=HTS_DATA.filter(x=>
+x.hts.startsWith(q.replace(/\D/g,''))||
+(x.desc||"").toLowerCase().includes(q)
+).slice(0,10);
 
-  let results=HTS_DATA.filter(i =>
-    i.hts.startsWith(q.replace(/\D/g,'')) ||
-    (i.description||"").toLowerCase().includes(q)
-  ).slice(0,10);
-
-  let div=document.getElementById("results");
-  div.innerHTML="";
-
-  results.forEach(i=>{
-    let el=document.createElement("div");
-    el.className="item";
-    el.innerHTML=`<strong>${i.originalHTS}</strong><br><small>${i.description}</small>`;
-    el.onclick=()=>{
-      selectedHTS=i;
-      div.innerHTML=`Selected: ${i.originalHTS}`;
-    };
-    div.appendChild(el);
-  });
+let d=document.getElementById("results");d.innerHTML="";
+m.forEach(i=>{
+let el=document.createElement("div");
+el.className="item";
+el.innerHTML=`${i.original}<br><small>${i.desc}</small>`;
+el.onclick=()=>{selectedHTS=i;d.innerHTML=`Selected: ${i.original}`};
+d.appendChild(el);
+});
 }
 
-function calculate(){
+function runHTS(){
 
-if(!selectedHTS) return alert("Select HTS");
+let r=tariffEngine({
+cost:+cost.value||0,
+units:parseFloat(units.value.replace(/,/g,''))||1,
+country:country.value,
+hts:selectedHTS.hts,
+metal:+metalPercent.value||0,
+type:productType.value,
+us:usMaterial.value,
+htsData:HTS_DATA,
+section301:SECTION301
+});
 
-let costVal=+document.getElementById("cost").value||0;
-let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
-let ctry=document.getElementById("country").value;
-
-let metal=+document.getElementById("metalPercent").value||0;
-let ptype=document.getElementById("productType").value;
-let us=document.getElementById("usMaterial").value;
-
-let gen=selectedHTS.duty * 100;
-let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
-
-// 🔥 FIXED 232 LOGIC
-let s232=0;
-let is232Applicable = metal > 15;
-
-if(is232Applicable){
-  if(us==="yes") s232=10;
-  else if(ptype==="industrial") s232=15;
-  else if(ptype==="derivative") s232=25;
-  else if(ptype==="raw") s232=50;
+render(r,"output");
 }
 
-let s122 = s232>0 ? 0 : 10;
+// =========================
+// PRODUCT FLOW
+// =========================
+function searchProducts(){
+let q=productSearch.value.toLowerCase();
+let m=PRODUCTS.filter(p=>
+(p.item||"").toLowerCase().includes(q)||
+(p.desc||"").toLowerCase().includes(q)
+).slice(0,10);
 
-let goods=costVal*unitsVal;
-let totalRate=gen+s301+s232+s122;
-let duty=goods*(totalRate/100);
+let d=document.getElementById("productResults");d.innerHTML="";
+m.forEach(p=>{
+let el=document.createElement("div");
+el.className="item";
+el.innerHTML=`${p.item}<br><small>${p.desc}</small>`;
+el.onclick=()=>selectProduct(p);
+d.appendChild(el);
+});
+}
 
-let dGenUnit=(goods*(gen/100))/unitsVal;
+function selectProduct(p){
 
-let section232Text = is232Applicable
-  ? `Section 232 (${s232}%): $${((goods*(s232/100))/unitsVal).toFixed(2)}`
-  : `Section 232: Not subject`;
+let norm=p.hts.replace(/\D/g,'').substring(0,8);
 
-document.getElementById("output").innerHTML=`
-<div class="big">$${(costVal + duty/unitsVal).toFixed(2)}</div>
+let r=tariffEngine({
+cost:p.cost,
+units:p.units,
+country:p.country,
+hts:norm,
+metal:0,
+type:"",
+us:"no",
+htsData:HTS_DATA,
+section301:SECTION301
+});
+
+render(r,"productOutput");
+}
+
+// =========================
+// RENDER
+// =========================
+function render(r,id){
+
+let html=`
+<div class="big">$${r.landed.toFixed(2)}</div>
 <div>Per Unit Landed Cost</div>
 
 <hr>
 
-<strong>Goods Value:</strong> $${goods.toLocaleString()}<br>
-<strong>Total Duty Impact:</strong> $${duty.toLocaleString()}
+Goods Value: $${r.goods.toLocaleString()}<br>
+Total Duty Impact: $${r.duty.toLocaleString()}
 
 <hr>
 
-<strong>Duty per Unit</strong><br>
-General Rate of Duty (${gen.toFixed(1)}%): $${dGenUnit.toFixed(3)}<br>
-Section 301 (${s301}%): $${((goods*(s301/100))/unitsVal).toFixed(2)}<br>
-${section232Text}<br>
-Section 122 (${s122}%): $${((goods*(s122/100))/unitsVal).toFixed(2)}<br>
+General (${r.gen.toFixed(1)}%): $${((r.goods*(r.gen/100))/r.goods*r.goods/r.goods).toFixed(3)}<br>
+Section 301 (${r.s301}%): $${((r.goods*(r.s301/100))/r.goods*r.goods/r.goods).toFixed(2)}<br>
+${r.s232>0 ? `Section 232 (${r.s232}%): $${((r.goods*(r.s232/100))/r.goods*r.goods/r.goods).toFixed(2)}` : `Section 232: Not subject`}<br>
+Section 122 (${r.s122}%): $${((r.goods*(r.s122/100))/r.goods*r.goods/r.goods).toFixed(2)}<br>
 
 <hr>
 
-<strong>Total Duty per Unit:</strong> $${(duty/unitsVal).toFixed(2)}
+Total Duty per Unit: $${r.perUnit.toFixed(2)}
 `;
+
+document.getElementById(id).innerHTML=html;
 }
 
 </script>
