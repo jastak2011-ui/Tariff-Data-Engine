@@ -137,7 +137,7 @@ button {
 
 </div>
 
-<!-- CURRENT PRODUCTS TAB -->
+<!-- PRODUCTS TAB -->
 <div id="products" class="tab-content">
 
 <div class="section">
@@ -173,7 +173,6 @@ function formatUnits(input){
   if(val){ input.value = parseInt(val).toLocaleString(); }
 }
 
-// LOAD DATA
 async function loadData(){
   let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
   let s=await fetch("Listed Commodities.csv").then(r=>r.text());
@@ -181,7 +180,6 @@ async function loadData(){
   parse301(s);
 }
 
-// LOAD PRODUCTS
 async function loadProducts(){
   let res=await fetch("products.csv");
   let text=await res.text();
@@ -210,13 +208,9 @@ function normalizeCountry(c){
   if(!c) return "";
   c=c.toLowerCase();
   if(c.includes("china"))return"CN";
-  if(c.includes("mexico"))return"MX";
-  if(c.includes("vietnam"))return"VN";
-  if(c.includes("india"))return"IN";
   return c.toUpperCase();
 }
 
-// CSV PARSER
 function parseCSV(t){
 const r=[];let row=[],c='',q=false;
 for(let ch of t){
@@ -229,7 +223,6 @@ if(c||row.length){row.push(c);r.push(row);}
 return r;
 }
 
-// HTS PARSE (FIXED)
 function parseHTS(t){
   let r=parseCSV(t);
   let headers=r[0].map(x=>x.toLowerCase().trim());
@@ -261,7 +254,6 @@ function get301Rate(h){
   return 0;
 }
 
-// HTS SEARCH
 function searchHTS(){
   let q=document.getElementById("search").value.toLowerCase();
 
@@ -285,51 +277,33 @@ function searchHTS(){
   });
 }
 
-// PRODUCT SEARCH
-function searchProducts(){
-let q=document.getElementById("productSearch").value.toLowerCase();
+function calculate(){
 
-let matches=PRODUCT_DATA.filter(p =>
-(p.item && p.item.toLowerCase().includes(q)) ||
-(p.description && p.description.toLowerCase().includes(q))
-).slice(0,10);
+if(!selectedHTS) return alert("Select HTS");
 
-let div=document.getElementById("productResults");
-div.innerHTML="";
+let costVal=+document.getElementById("cost").value||0;
+let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
+let ctry=document.getElementById("country").value;
 
-matches.forEach(p=>{
-let el=document.createElement("div");
-el.className="item";
-el.innerHTML=`<strong>${p.item}</strong><br><small>${p.description}</small>`;
-el.onclick=()=>selectProduct(p);
-div.appendChild(el);
-});
-}
-
-// SELECT PRODUCT
-function selectProduct(p){
-
-let norm=p.hts.replace(/\D/g,'').substring(0,8);
-let match=HTS_DATA.find(x=>x.hts===norm);
-
-if(!match){alert("HTS not found");return;}
-
-selectedHTS=match;
-
-// run SAME engine
-document.getElementById("productOutput").innerHTML =
-buildOutput(p.cost, p.units, p.country);
-}
-
-// SHARED ENGINE
-function buildOutput(costVal, unitsVal, ctry){
+let metal=+document.getElementById("metalPercent").value||0;
+let ptype=document.getElementById("productType").value;
+let us=document.getElementById("usMaterial").value;
 
 let gen=selectedHTS.duty * 100;
 let s301=ctry==="CN"?get301Rate(selectedHTS.hts):0;
 
-// no 232 inputs for product mode (yet)
+// 🔥 FIXED 232 LOGIC
 let s232=0;
-let s122=10;
+let is232Applicable = metal > 15;
+
+if(is232Applicable){
+  if(us==="yes") s232=10;
+  else if(ptype==="industrial") s232=15;
+  else if(ptype==="derivative") s232=25;
+  else if(ptype==="raw") s232=50;
+}
+
+let s122 = s232>0 ? 0 : 10;
 
 let goods=costVal*unitsVal;
 let totalRate=gen+s301+s232+s122;
@@ -337,10 +311,11 @@ let duty=goods*(totalRate/100);
 
 let dGenUnit=(goods*(gen/100))/unitsVal;
 
-let s301html=ctry==="CN"
-?`Section 301 (${s301}%): $${((goods*(s301/100))/unitsVal).toFixed(2)}<br>`:"";
+let section232Text = is232Applicable
+  ? `Section 232 (${s232}%): $${((goods*(s232/100))/unitsVal).toFixed(2)}`
+  : `Section 232: Not subject`;
 
-return `
+document.getElementById("output").innerHTML=`
 <div class="big">$${(costVal + duty/unitsVal).toFixed(2)}</div>
 <div>Per Unit Landed Cost</div>
 
@@ -353,27 +328,14 @@ return `
 
 <strong>Duty per Unit</strong><br>
 General Rate of Duty (${gen.toFixed(1)}%): $${dGenUnit.toFixed(3)}<br>
-${s301html}
-Section 232: Not subject<br>
+Section 301 (${s301}%): $${((goods*(s301/100))/unitsVal).toFixed(2)}<br>
+${section232Text}<br>
 Section 122 (${s122}%): $${((goods*(s122/100))/unitsVal).toFixed(2)}<br>
 
 <hr>
 
 <strong>Total Duty per Unit:</strong> $${(duty/unitsVal).toFixed(2)}
 `;
-}
-
-// MAIN CALC
-function calculate(){
-
-if(!selectedHTS) return alert("Select HTS");
-
-let costVal=+document.getElementById("cost").value||0;
-let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
-let ctry=document.getElementById("country").value;
-
-document.getElementById("output").innerHTML =
-buildOutput(costVal, unitsVal, ctry);
 }
 
 </script>
