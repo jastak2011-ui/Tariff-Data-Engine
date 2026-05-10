@@ -41,6 +41,9 @@ button {
 
 .item {padding:10px;border-bottom:1px solid #30363d;cursor:pointer;}
 .item:hover {background:#21262d;}
+.stat {padding:8px 0;border-bottom:1px solid #30363d;}
+.stat:last-child {border-bottom:none;}
+.muted {color:#8b949e;font-size:12px;}
 </style>
 </head>
 
@@ -60,7 +63,7 @@ button {
 
 <div class="section">
 <h3>HTS Lookup</h3>
-<input id="search" placeholder="Enter HTS or description">
+<input id="search" placeholder="Enter partial HTS or description" oninput="searchHTS()" autocomplete="off">
 <button onclick="searchHTS()">Search</button>
 <div id="results"></div>
 </div>
@@ -100,11 +103,6 @@ button {
 <h3>Origin</h3>
 <select id="country">
 <option value="" disabled selected>Select Country *</option>
-<option value="CN">China</option>
-<option value="VN">Vietnam</option>
-<option value="IN">India</option>
-<option value="MX">Mexico</option>
-<option value="CA">Canada</option>
 </select>
 </div>
 
@@ -148,6 +146,15 @@ button {
 
 <div id="productOutput" class="result"></div>
 
+<div class="section">
+<h3>Batch Duty Exposure Dashboard</h3>
+<div class="helper">Runs annual duty exposure for all products in <code>products.csv</code></div>
+<button onclick="runBatchExposure()">Run Batch Exposure</button>
+<button onclick="exportExecutiveSummary()">Export Executive Summary</button>
+</div>
+
+<div id="batchOutput" class="result"></div>
+
 </div>
 
 </div>
@@ -155,8 +162,12 @@ button {
 <script>
 
 let HTS_DATA=[],SECTION301_LIST=[],PRODUCT_DATA=[],selectedHTS=null;
+let htsDataLoaded=false;
+let htsLoadError="";
+let LAST_BATCH_REPORT=null;
 
 window.onload = async function(){
+  initCountrySelect();
   await loadData();
   await loadProducts();
 };
@@ -174,10 +185,23 @@ function formatUnits(input){
 }
 
 async function loadData(){
-  let h=await fetch("tariff_database_2026.csv").then(r=>r.text());
-  let s=await fetch("Listed Commodities.csv").then(r=>r.text());
-  parseHTS(h);
-  parse301(s);
+  try{
+    let h=await fetch("tariff_database_2026.csv");
+    if(!h.ok) throw new Error(`tariff_database_2026.csv failed (${h.status})`);
+
+    let s=await fetch("Listed Commodities.csv");
+    if(!s.ok) throw new Error(`Listed Commodities.csv failed (${s.status})`);
+
+    parseHTS(await h.text());
+    parse301(await s.text());
+    htsDataLoaded=true;
+    htsLoadError="";
+  }catch(err){
+    htsDataLoaded=false;
+    htsLoadError=(err && err.message) ? err.message : "Unknown HTS load error";
+    document.getElementById("results").innerHTML =
+      `<div class="helper">HTS data failed to load. ${htsLoadError}</div>`;
+  }
 }
 
 async function loadProducts(){
@@ -193,22 +217,127 @@ async function loadProducts(){
   let unitsIndex=headers.findIndex(h=>h.includes("annual"));
   let cooIndex=headers.findIndex(h=>h.includes("country"));
   let htsIndex=headers.findIndex(h=>h.includes("hts"));
+  let metalIndex=headers.findIndex(h=>h.includes("metal"));
+  let typeIndex=headers.findIndex(h=>h.includes("type"));
+  let usMatIndex=headers.findIndex(h=>h.includes("foreign or us"));
+  let supplierIndex=headers.findIndex(h=>h.includes("supplier"));
 
   PRODUCT_DATA=rows.slice(1).map(r=>({
     item:r[itemIndex],
     description:r[descIndex],
-    cost:parseFloat((r[costIndex]||"0").replace("$",""))||0,
-    units:parseFloat((r[unitsIndex]||"0").replace(/,/g,'')),
+    supplier:r[supplierIndex] || "Unknown Supplier",
+    cost:toNumber(r[costIndex]),
+    units:toNumber(r[unitsIndex]),
     country:normalizeCountry(r[cooIndex]),
-    hts:r[htsIndex]
+    hts:r[htsIndex],
+    metalPercent:toNumber(r[metalIndex]),
+    type:(r[typeIndex] || "").trim().toLowerCase(),
+    usMaterial:(r[usMatIndex] || "").toLowerCase().includes("us") ? "yes" : "no"
   }));
 }
 
 function normalizeCountry(c){
   if(!c) return "";
-  c=c.toLowerCase();
-  if(c.includes("china"))return"CN";
-  return c.toUpperCase();
+  const raw = String(c).trim();
+  const s = raw.toLowerCase();
+
+  if(/^([a-z]{2})$/i.test(raw)) return raw.toUpperCase();
+
+  const aliases = {
+    usa:"US","u.s.":"US","u.s.a.":"US","united states":"US","america":"US",
+    uk:"GB","u.k.":"GB","great britain":"GB","britain":"GB","england":"GB","united kingdom":"GB",
+    uae:"AE","emirates":"AE","u.a.e.":"AE","united arab emirates":"AE",
+    vietnam:"VN","viet nam":"VN","czechia":"CZ","south korea":"KR","korea, republic of":"KR","rok":"KR",
+    taiwan:"TW","taiwan (roc)":"TW","chinese taipei":"TW","prc":"CN","china mainland":"CN",
+    russia:"RU","russian federation":"RU"
+  };
+  if(aliases[s]) return aliases[s];
+  if(s.includes("north korea") || s.includes("dprk")) return "KP";
+
+  const sortedByLen = [...ORIGIN_COUNTRIES].sort((a,b)=>b[1].length-a[1].length);
+  for(const [code,name] of sortedByLen){
+    const nl = name.toLowerCase();
+    if(s===nl || (nl.length>=4 && s.includes(nl))) return code;
+  }
+
+  const shortHits = [
+    ["china","CN"],["india","IN"],["mexico","MX"],["canada","CA"],["japan","JP"],
+    ["brazil","BR"],["chile","CL"],["peru","PE"],["colombia","CO"],["argentina","AR"],
+    ["indonesia","ID"],["malaysia","MY"],["thailand","TH"],["philippines","PH"],
+    ["vietnam","VN"],["bangladesh","BD"],["pakistan","PK"],["turkey","TR"],["poland","PL"],
+    ["germany","DE"],["france","FR"],["italy","IT"],["spain","ES"],["netherlands","NL"],
+    ["belgium","BE"],["sweden","SE"],["norway","NO"],["denmark","DK"],["finland","FI"],
+    ["ireland","IE"],["portugal","PT"],["austria","AT"],["switzerland","CH"],["greece","GR"],
+    ["singapore","SG"],["hong kong","HK"],["new zealand","NZ"],["australia","AU"],
+    ["south africa","ZA"],["israel","IL"],["saudi","SA"],["egypt","EG"],["nigeria","NG"],
+    ["kenya","KE"],["morocco","MA"],["costa rica","CR"],["dominican","DO"],["jamaica","JM"],
+    ["panama","PA"],["ecuador","EC"],["honduras","HN"],["guatemala","GT"],["el salvador","SV"],
+    ["nicaragua","NI"],["paraguay","PY"],["uruguay","UY"],["bolivia","BO"],["venezuela","VE"],
+    ["romania","RO"],["hungary","HU"],["czech","CZ"],["slovakia","SK"],["slovenia","SI"],
+    ["croatia","HR"],["serbia","RS"],["bulgaria","BG"],["ukraine","UA"],["latvia","LV"],
+    ["lithuania","LT"],["estonia","EE"],["korea","KR"],["taiwan","TW"]
+  ];
+  for(const [needle,code] of shortHits){
+    if(s.includes(needle)) return code;
+  }
+
+  return raw.toUpperCase().slice(0,2);
+}
+
+const ORIGIN_COUNTRIES = [
+  ["AF","Afghanistan"],["AL","Albania"],["DZ","Algeria"],["AD","Andorra"],["AO","Angola"],
+  ["AG","Antigua and Barbuda"],["AR","Argentina"],["AM","Armenia"],["AU","Australia"],["AT","Austria"],
+  ["AZ","Azerbaijan"],["BS","Bahamas"],["BH","Bahrain"],["BD","Bangladesh"],["BB","Barbados"],
+  ["BY","Belarus"],["BE","Belgium"],["BZ","Belize"],["BJ","Benin"],["BT","Bhutan"],
+  ["BO","Bolivia"],["BA","Bosnia and Herzegovina"],["BW","Botswana"],["BR","Brazil"],["BN","Brunei"],
+  ["BG","Bulgaria"],["BF","Burkina Faso"],["KH","Cambodia"],["CM","Cameroon"],["CA","Canada"],
+  ["CL","Chile"],["CN","China"],["CO","Colombia"],["CR","Costa Rica"],["HR","Croatia"],
+  ["CY","Cyprus"],["CZ","Czech Republic"],["CD","Democratic Republic of the Congo"],["DK","Denmark"],
+  ["DJ","Djibouti"],["DM","Dominica"],["DO","Dominican Republic"],["EC","Ecuador"],["EG","Egypt"],
+  ["SV","El Salvador"],["EE","Estonia"],["ET","Ethiopia"],["FJ","Fiji"],["FI","Finland"],
+  ["FR","France"],["GA","Gabon"],["GM","Gambia"],["GE","Georgia"],["DE","Germany"],["GH","Ghana"],
+  ["GR","Greece"],["GD","Grenada"],["GT","Guatemala"],["GN","Guinea"],["GY","Guyana"],["HT","Haiti"],
+  ["HN","Honduras"],["HK","Hong Kong"],["HU","Hungary"],["IS","Iceland"],["IN","India"],
+  ["ID","Indonesia"],["IR","Iran"],["IQ","Iraq"],["IE","Ireland"],["IL","Israel"],["IT","Italy"],
+  ["CI","Ivory Coast"],["JM","Jamaica"],["JP","Japan"],["JO","Jordan"],["KZ","Kazakhstan"],
+  ["KE","Kenya"],["KR","South Korea"],["KW","Kuwait"],["KG","Kyrgyzstan"],["LA","Laos"],
+  ["LV","Latvia"],["LB","Lebanon"],["LY","Libya"],["LI","Liechtenstein"],["LT","Lithuania"],
+  ["LU","Luxembourg"],["MO","Macau"],["MG","Madagascar"],["MW","Malawi"],["MY","Malaysia"],
+  ["MV","Maldives"],["ML","Mali"],["MT","Malta"],["MR","Mauritania"],["MU","Mauritius"],
+  ["MX","Mexico"],["MD","Moldova"],["MC","Monaco"],["MN","Mongolia"],["ME","Montenegro"],
+  ["MA","Morocco"],["MZ","Mozambique"],["MM","Myanmar"],["NA","Namibia"],["NP","Nepal"],
+  ["NL","Netherlands"],["NZ","New Zealand"],["NI","Nicaragua"],["NE","Niger"],["NG","Nigeria"],
+  ["MK","North Macedonia"],["NO","Norway"],["OM","Oman"],["PK","Pakistan"],["PA","Panama"],
+  ["PG","Papua New Guinea"],["PY","Paraguay"],["PE","Peru"],["PH","Philippines"],["PL","Poland"],
+  ["PT","Portugal"],["QA","Qatar"],["RO","Romania"],["RU","Russia"],["RW","Rwanda"],
+  ["KN","Saint Kitts and Nevis"],["LC","Saint Lucia"],["VC","Saint Vincent and the Grenadines"],
+  ["SM","San Marino"],["SA","Saudi Arabia"],["SN","Senegal"],["RS","Serbia"],["SC","Seychelles"],
+  ["SL","Sierra Leone"],["SG","Singapore"],["SK","Slovakia"],["SI","Slovenia"],["ZA","South Africa"],
+  ["ES","Spain"],["LK","Sri Lanka"],["SD","Sudan"],["SR","Suriname"],["SE","Sweden"],["CH","Switzerland"],
+  ["TW","Taiwan"],["TJ","Tajikistan"],["TZ","Tanzania"],["TH","Thailand"],["TG","Togo"],
+  ["TT","Trinidad and Tobago"],["TN","Tunisia"],["TR","Turkey"],["TM","Turkmenistan"],["UG","Uganda"],
+  ["UA","Ukraine"],["AE","United Arab Emirates"],["GB","United Kingdom"],["US","United States"],
+  ["UY","Uruguay"],["UZ","Uzbekistan"],["VE","Venezuela"],["VN","Vietnam"],["YE","Yemen"],
+  ["ZM","Zambia"],["ZW","Zimbabwe"]
+];
+
+function initCountrySelect(){
+  const sel = document.getElementById("country");
+  sel.innerHTML = "";
+  const ph = document.createElement("option");
+  ph.value = "";
+  ph.disabled = true;
+  ph.selected = true;
+  ph.textContent = "Select Country *";
+  sel.appendChild(ph);
+
+  const sorted = [...ORIGIN_COUNTRIES].sort((a,b)=>a[1].localeCompare(b[1]));
+  for(const [code,name] of sorted){
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  }
 }
 
 function parseCSV(t){
@@ -221,6 +350,13 @@ if(c||row.length){row.push(c);r.push(row);row=[];c='';}}
 else c+=ch;}
 if(c||row.length){row.push(c);r.push(row);}
 return r;
+}
+
+function toNumber(v){
+  if(v===null || v===undefined) return 0;
+  const cleaned = String(v).replace(/[$,%\s]/g,'').replace(/,/g,'');
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) ? num : 0;
 }
 
 function parseHTS(t){
@@ -255,14 +391,36 @@ function get301Rate(h){
 }
 
 function searchHTS(){
-  let q=document.getElementById("search").value.toLowerCase();
+  const input = document.getElementById("search");
+  const qRaw = input.value.trim();
+  const q = qRaw.toLowerCase();
+  const qDigits = qRaw.replace(/\D/g,'');
+  const div=document.getElementById("results");
 
-  let results=HTS_DATA.filter(i =>
-    i.hts.startsWith(q.replace(/\D/g,'')) ||
-    (i.description||"").toLowerCase().includes(q)
-  ).slice(0,10);
+  if(htsLoadError){
+    const fileProtocolHint = window.location.protocol === "file:"
+      ? " Open this project with a local web server (not file://)."
+      : "";
+    div.innerHTML = `<div class="helper">HTS data failed to load: ${htsLoadError}.${fileProtocolHint}</div>`;
+    return;
+  }
 
-  let div=document.getElementById("results");
+  if(!htsDataLoaded){
+    div.innerHTML = `<div class="helper">Loading HTS database...</div>`;
+    return;
+  }
+
+  if(!qRaw){
+    div.innerHTML = "";
+    return;
+  }
+
+  const results=HTS_DATA.filter(i => {
+    const htsMatches = qDigits ? i.hts.startsWith(qDigits) : false;
+    const descMatches = (i.description||"").toLowerCase().includes(q);
+    return htsMatches || descMatches;
+  }).slice(0,10);
+
   div.innerHTML="";
 
   results.forEach(i=>{
@@ -272,9 +430,310 @@ function searchHTS(){
     el.onclick=()=>{
       selectedHTS=i;
       div.innerHTML=`Selected: ${i.originalHTS}`;
+      input.value=i.originalHTS;
     };
     div.appendChild(el);
   });
+
+  if(!results.length && q){
+    div.innerHTML = `<div class="helper">No HTS matches found.</div>`;
+  }
+}
+
+function selectHTSByCode(code){
+  if(!code) return false;
+  const normalized = String(code).replace(/\D/g,'').substring(0,8);
+  if(!normalized) return false;
+  const match = HTS_DATA.find(i => i.hts === normalized);
+  if(!match) return false;
+  selectedHTS = match;
+  document.getElementById("results").innerHTML = `Selected: ${match.originalHTS}`;
+  document.getElementById("search").value = match.originalHTS || normalized;
+  return true;
+}
+
+function searchProducts(){
+  const q = document.getElementById("productSearch").value.toLowerCase().trim();
+  const results = PRODUCT_DATA.filter(p =>
+    (p.item || "").toLowerCase().includes(q) ||
+    (p.description || "").toLowerCase().includes(q)
+  ).slice(0, 25);
+
+  const container = document.getElementById("productResults");
+  container.innerHTML = "";
+
+  if(!q){
+    container.innerHTML = `<div class="helper">Start typing to find a product.</div>`;
+    return;
+  }
+
+  if(!results.length){
+    container.innerHTML = `<div class="helper">No products found.</div>`;
+    return;
+  }
+
+  results.forEach(p => {
+    const el = document.createElement("div");
+    el.className = "item";
+    el.innerHTML = `<strong>${p.item || "Unknown Item"}</strong><br><small>${p.description || ""}</small>`;
+    el.onclick = () => applyProduct(p);
+    container.appendChild(el);
+  });
+}
+
+function applyProduct(product){
+  document.getElementById("cost").value = product.cost || "";
+  document.getElementById("units").value = (product.units || 0).toLocaleString();
+  document.getElementById("country").value = product.country || "";
+  document.getElementById("metalPercent").value = product.metalPercent || "";
+  document.getElementById("productType").value = product.type || "";
+  document.getElementById("usMaterial").value = product.usMaterial || "no";
+
+  const matchedHTS = selectHTSByCode(product.hts);
+  const statusText = matchedHTS
+    ? `Loaded HTS ${product.hts}`
+    : `HTS ${product.hts || "N/A"} not found in tariff database`;
+
+  document.getElementById("productOutput").innerHTML = `
+    <strong>Loaded Product:</strong> ${product.item || "Unknown"}<br>
+    <strong>Description:</strong> ${product.description || "-"}<br>
+    <strong>Supplier:</strong> ${product.supplier || "-"}<br>
+    <strong>Country:</strong> ${product.country || "-"}<br>
+    <strong>Status:</strong> ${statusText}
+  `;
+}
+
+function computeDutyBreakdown(input){
+  const hts = String(input.hts || "").replace(/\D/g,'').substring(0,8);
+  if(!hts) return null;
+  const htsMatch = HTS_DATA.find(x => x.hts === hts);
+  if(!htsMatch) return null;
+
+  const units = input.units > 0 ? input.units : 0;
+  if(!units) return null;
+
+  const unitCost = input.cost || 0;
+  const country = input.country || "";
+  const metal = input.metalPercent || 0;
+  const ptype = input.type || "";
+  const us = input.usMaterial || "no";
+
+  const generalRate = (htsMatch.duty || 0) * 100;
+  const section301 = country === "CN" ? get301Rate(htsMatch.hts) : 0;
+
+  let section232 = 0;
+  if(metal > 15){
+    if(us==="yes") section232=10;
+    else if(ptype==="industrial") section232=15;
+    else if(ptype==="derivative") section232=25;
+    else if(ptype==="raw") section232=50;
+  }
+  const section122 = section232 > 0 ? 0 : 10;
+
+  const goods = unitCost * units;
+  const totalRate = generalRate + section301 + section232 + section122;
+  const duty = goods * (totalRate / 100);
+
+  return { goods, duty, totalRate };
+}
+
+function aggregateBy(items, keyName){
+  const totals = {};
+  items.forEach(item => {
+    const key = item[keyName] || "Unknown";
+    if(!totals[key]){
+      totals[key] = { duty: 0, goods: 0 };
+    }
+    totals[key].duty += item.duty || 0;
+    totals[key].goods += item.goods || 0;
+  });
+
+  return Object.entries(totals)
+    .map(([key, val]) => ({
+      key,
+      duty: val.duty,
+      goods: val.goods,
+      dutyPct: val.goods ? (val.duty / val.goods) * 100 : 0
+    }))
+    .sort((a,b)=>b.duty-a.duty)
+    .slice(0,10);
+}
+
+function getHTSDisplayLabel(htsCode){
+  const normalized = String(htsCode || "").replace(/\D/g,'').substring(0,8);
+  const match = HTS_DATA.find(x => x.hts === normalized);
+  if(!match) return htsCode || "Unknown";
+  const description = (match.description || "").trim();
+  return description ? `${match.originalHTS || normalized} - ${description}` : (match.originalHTS || normalized);
+}
+
+function renderTopList(title, entries, labelFormatter){
+  const rows = entries.map((entry) =>
+    `<div class="stat"><strong>${labelFormatter ? labelFormatter(entry.key) : entry.key}</strong><br><span class="muted">Spend: $${entry.goods.toLocaleString(undefined,{maximumFractionDigits:2})} | Duty: $${entry.duty.toLocaleString(undefined,{maximumFractionDigits:2})} | Duty %: ${entry.dutyPct.toFixed(2)}%</span></div>`
+  ).join("");
+  return `
+    <div class="section">
+      <h3>${title}</h3>
+      ${rows || `<div class="muted">No data</div>`}
+    </div>
+  `;
+}
+
+function escapeHtml(str){
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildExecutiveTableRows(entries, labelFormatter){
+  return entries.map((entry) => `
+    <tr>
+      <td>${escapeHtml(labelFormatter ? labelFormatter(entry.key) : entry.key)}</td>
+      <td class="num">$${entry.goods.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+      <td class="num">$${entry.duty.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+      <td class="num">${entry.dutyPct.toFixed(2)}%</td>
+    </tr>
+  `).join("");
+}
+
+function runBatchExposure(){
+  const out = document.getElementById("batchOutput");
+  if(!htsDataLoaded || !HTS_DATA.length){
+    out.innerHTML = `<div class="helper">HTS data is not loaded yet. Resolve HTS load first.</div>`;
+    return;
+  }
+  if(!PRODUCT_DATA.length){
+    out.innerHTML = `<div class="helper">No products loaded from products.csv</div>`;
+    return;
+  }
+
+  const computed = [];
+  let skipped = 0;
+
+  PRODUCT_DATA.forEach(p => {
+    const calc = computeDutyBreakdown(p);
+    if(!calc){
+      skipped += 1;
+      return;
+    }
+    computed.push({ ...p, duty: calc.duty, goods: calc.goods, totalRate: calc.totalRate });
+  });
+
+  const totalDuty = computed.reduce((s,p)=>s+p.duty,0);
+  const totalGoods = computed.reduce((s,p)=>s+p.goods,0);
+  const avgRate = totalGoods ? (totalDuty / totalGoods) * 100 : 0;
+  const topSuppliers = aggregateBy(computed, "supplier");
+  const topCountries = aggregateBy(computed, "country");
+  const topHts = aggregateBy(computed, "hts");
+
+  LAST_BATCH_REPORT = {
+    generatedAt: new Date(),
+    totalDuty,
+    totalGoods,
+    avgRate,
+    calculated: computed.length,
+    skipped,
+    suppliers: topSuppliers,
+    countries: topCountries,
+    hts: topHts
+  };
+
+  out.innerHTML = `
+    <div class="big">$${totalDuty.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+    <div>Estimated Annual Duty Exposure</div>
+    <hr>
+    <strong>Products Calculated:</strong> ${computed.length}<br>
+    <strong>Products Skipped (missing HTS/units):</strong> ${skipped}<br>
+    <strong>Total Annual Goods Value:</strong> $${totalGoods.toLocaleString(undefined,{maximumFractionDigits:2})}<br>
+    <strong>Weighted Avg Duty Rate:</strong> ${avgRate.toFixed(2)}%
+    <hr>
+    ${renderTopList("Top 10 Suppliers by Duty", topSuppliers)}
+    ${renderTopList("Top 10 Countries by Duty", topCountries)}
+    ${renderTopList("Top 10 HTS Codes by Duty", topHts, getHTSDisplayLabel)}
+  `;
+}
+
+function exportExecutiveSummary(){
+  if(!LAST_BATCH_REPORT){
+    alert("Run Batch Exposure first, then export.");
+    return;
+  }
+
+  const r = LAST_BATCH_REPORT;
+  const dateStr = r.generatedAt.toLocaleString();
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tariff Engine Executive Summary</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; color: #111; }
+    h1 { margin-bottom: 4px; }
+    .sub { color: #555; margin-bottom: 24px; }
+    .kpis { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; }
+    .label { font-size: 12px; color: #666; margin-bottom: 4px; }
+    .value { font-size: 22px; font-weight: bold; }
+    h2 { margin-top: 28px; border-bottom: 2px solid #eee; padding-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #e5e5e5; padding: 8px 10px; vertical-align: top; }
+    th { background: #f6f8fa; text-align: left; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    th.num { text-align: right; }
+    .note { margin-top: 24px; color: #555; font-size: 12px; }
+    @media print { body { margin: 16px; } }
+  </style>
+</head>
+<body>
+  <h1>Tariff Engine Executive Summary</h1>
+  <div class="sub">Generated: ${escapeHtml(dateStr)}</div>
+
+  <div class="kpis">
+    <div class="card"><div class="label">Estimated Annual Duty Exposure</div><div class="value">$${r.totalDuty.toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>
+    <div class="card"><div class="label">Total Annual Goods Value</div><div class="value">$${r.totalGoods.toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>
+    <div class="card"><div class="label">Weighted Average Duty Rate</div><div class="value">${r.avgRate.toFixed(2)}%</div></div>
+    <div class="card"><div class="label">Products Calculated / Skipped</div><div class="value">${r.calculated} / ${r.skipped}</div></div>
+  </div>
+
+  <h2>Top 10 Suppliers by Duty</h2>
+  <table>
+    <thead><tr><th>Supplier</th><th class="num">Annual Spend</th><th class="num">Duty Exposure</th><th class="num">Duty %</th></tr></thead>
+    <tbody>${buildExecutiveTableRows(r.suppliers)}</tbody>
+  </table>
+
+  <h2>Top 10 Countries by Duty</h2>
+  <table>
+    <thead><tr><th>Country</th><th class="num">Annual Spend</th><th class="num">Duty Exposure</th><th class="num">Duty %</th></tr></thead>
+    <tbody>${buildExecutiveTableRows(r.countries)}</tbody>
+  </table>
+
+  <h2>Top 10 HTS Codes by Duty</h2>
+  <table>
+    <thead><tr><th>HTS Code + Description</th><th class="num">Annual Spend</th><th class="num">Duty Exposure</th><th class="num">Duty %</th></tr></thead>
+    <tbody>${buildExecutiveTableRows(r.hts, getHTSDisplayLabel)}</tbody>
+  </table>
+
+  <div class="note">
+    This summary is generated from <code>products.csv</code>, <code>tariff_database_2026.csv</code>, and <code>Listed Commodities.csv</code>
+    using the current tariff logic (General + Section 301 + Section 232 + Section 122).
+  </div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const stamp = r.generatedAt.toISOString().replace(/[:.]/g, "-");
+  link.href = url;
+  link.download = `tariff-executive-summary-${stamp}.html`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function calculate(){
@@ -284,6 +743,12 @@ if(!selectedHTS) return alert("Select HTS");
 let costVal=+document.getElementById("cost").value||0;
 let unitsVal=parseFloat(document.getElementById("units").value.replace(/,/g,''))||1;
 let ctry=document.getElementById("country").value;
+let freight=+document.getElementById("freight").value||0;
+let brokerage=+document.getElementById("brokerage").value||0;
+let other=+document.getElementById("other").value||0;
+
+if(!ctry) return alert("Select country of origin");
+if(unitsVal<=0) return alert("Units must be greater than zero");
 
 let metal=+document.getElementById("metalPercent").value||0;
 let ptype=document.getElementById("productType").value;
@@ -308,6 +773,8 @@ let s122 = s232>0 ? 0 : 10;
 let goods=costVal*unitsVal;
 let totalRate=gen+s301+s232+s122;
 let duty=goods*(totalRate/100);
+let extras=freight+brokerage+other;
+let totalLanded=goods+duty+extras;
 
 let dGenUnit=(goods*(gen/100))/unitsVal;
 
@@ -316,13 +783,14 @@ let section232Text = is232Applicable
   : `Section 232: Not subject`;
 
 document.getElementById("output").innerHTML=`
-<div class="big">$${(costVal + duty/unitsVal).toFixed(2)}</div>
+<div class="big">$${(totalLanded/unitsVal).toFixed(2)}</div>
 <div>Per Unit Landed Cost</div>
 
 <hr>
 
 <strong>Goods Value:</strong> $${goods.toLocaleString()}<br>
-<strong>Total Duty Impact:</strong> $${duty.toLocaleString()}
+<strong>Total Duty Impact:</strong> $${duty.toLocaleString()}<br>
+<strong>Freight + Brokerage + Other:</strong> $${extras.toLocaleString()}
 
 <hr>
 
